@@ -6032,13 +6032,13 @@
 
             // Ejecutar backup diario cuando se cargan los viajes
             useEffect(() => {
-                if (data.length > 0 && !loading) {
+                if (data.length > 0 && appState === 'app') {
                     const timer = setTimeout(() => {
                         performDailyBackup();
                     }, 3000);
                     return () => clearTimeout(timer);
                 }
-            }, [data.length, loading]);
+            }, [data.length, appState]);
 
             const handleSyncFromSheets = async () => {
                 if (!GoogleSheetsService.isConfigured) {
