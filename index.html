@@ -1478,10 +1478,6 @@
         };
 
         // =====================================================
-        // DATABASE SERVICE - SUPABASE PRIMERO, LOCALSTORAGE COMO RESPALDO
-        // =====================================================
-        ];
-        // =====================================================
         // DATOS INICIALES - 54 viajes pre-cargados
         // Se usan solo si no hay datos en localStorage/Supabase
         // =====================================================
@@ -2432,6 +2428,9 @@
           }
         ];
 
+        // =====================================================
+        // DATABASE SERVICE - SUPABASE PRIMERO, LOCALSTORAGE COMO RESPALDO
+        // =====================================================
         const DatabaseService = {
             // Obtener viajes - Supabase es la fuente principal
             async getViajes() {
