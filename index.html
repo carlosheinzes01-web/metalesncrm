@@ -1480,714 +1480,6 @@
         // =====================================================
         // DATABASE SERVICE - SUPABASE PRIMERO, LOCALSTORAGE COMO RESPALDO
         // =====================================================
-        const DatabaseService = {
-            // Obtener viajes - Supabase es la fuente principal
-            async getViajes() {
-                const sb = getSupabase();
-                let viajes = [];
-
-                // Si no hay Supabase, usar localStorage
-                if (!sb) {
-                    console.log('📦 Cargando desde localStorage (Supabase no disponible)');
-                    const saved = localStorage.getItem('antigravity_crm_data');
-                    viajes = saved ? JSON.parse(saved) : [];
-                } else {
-                    try {
-                        console.log('☁️ Cargando desde Supabase...');
-                        const { data, error } = await sb.from('viajes').select('*').order('created_at', { ascending: false });
-                        if (error) throw error;
-
-                        // Guardar copia local como respaldo
-                        if (data && data.length > 0) {
-                            localStorage.setItem('antigravity_crm_data', JSON.stringify(data));
-                            console.log('✅ Supabase: Cargados', data.length, 'viajes');
-                        }
-                        viajes = data || [];
-                    } catch (err) {
-                        console.error('❌ Error Supabase, usando localStorage:', err.message);
-                        const saved = localStorage.getItem('antigravity_crm_data');
-                        viajes = saved ? JSON.parse(saved) : [];
-                    }
-                }
-
-                // Si no hay datos, usar los viajes iniciales pre-cargados
-                if (viajes.length === 0 && typeof INITIAL_VIAJES !== 'undefined' && INITIAL_VIAJES.length > 0) {
-                    console.log('📦 Cargando viajes iniciales pre-definidos (54 viajes)...');
-                    viajes = [...INITIAL_VIAJES];
-                    // Guardar en localStorage para futuras cargas
-                    localStorage.setItem('antigravity_crm_data', JSON.stringify(viajes));
-                }
-
-                return viajes;
-            },
-
-            // Guardar viaje - Guarda en Supabase primero, luego localStorage
-            async saveViaje(viaje) {
-                const sb = getSupabase();
-
-                // Preparar documento para guardar (sin base64 grandes)
-                const viajeParaGuardar = { ...viaje };
-                if (viajeParaGuardar.documentos) {
-                    const docsClean = {};
-                    Object.keys(viajeParaGuardar.documentos).forEach(key => {
-                        const doc = viajeParaGuardar.documentos[key];
-                        docsClean[key] = {
-                            uploaded: doc.uploaded || false,
-                            fileName: doc.fileName || '',
-                            uploadDate: doc.uploadDate || '',
-                            storagePath: doc.storagePath || '',
-                            storageUrl: doc.storageUrl || ''
-                            // No incluir base64 - archivos están en Supabase Storage
-                        };
-                    });
-                    viajeParaGuardar.documentos = docsClean;
-                }
-
-                // Si hay Supabase, guardar ahí primero
-                if (sb) {
-                    try {
-                        const { error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' });
-                        if (error) throw error;
-                        console.log('✅ Guardado en Supabase:', viajeParaGuardar.Nombre || viajeParaGuardar.tripId);
-                    } catch (err) {
-                        console.error('❌ Error guardando en Supabase:', err.message);
-                        // Continuar para guardar en localStorage como respaldo
-                    }
-                }
-
-                // Guardar también en localStorage como respaldo
-                try {
-                    const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
-                    const idx = localData.findIndex(v => v.tripId === viajeParaGuardar.tripId);
-                    if (idx >= 0) localData[idx] = viajeParaGuardar;
-                    else localData.unshift(viajeParaGuardar);
-                    localStorage.setItem('antigravity_crm_data', JSON.stringify(localData));
-                } catch (storageErr) {
-                    console.error('Error en localStorage:', storageErr);
-                }
-
-                return { success: true };
-            },
-
-            // Guardar múltiples viajes
-            async saveViajesBatch(viajes) {
-                const sb = getSupabase();
-
-                // Limpiar documentos base64 para Supabase
-                const viajesClean = viajes.map(v => {
-                    const viaje = { ...v };
-                    if (viaje.documentos) {
-                        const docsClean = {};
-                        Object.keys(viaje.documentos).forEach(key => {
-                            const doc = viaje.documentos[key];
-                            docsClean[key] = {
-                                uploaded: doc.uploaded || false,
-                                fileName: doc.fileName || '',
-                                uploadDate: doc.uploadDate || '',
-                                storagePath: doc.storagePath || '',
-                                storageUrl: doc.storageUrl || ''
-                            };
-                        });
-                        viaje.documentos = docsClean;
-                    }
-                    return viaje;
-                });
-
-                if (sb) {
-                    try {
-                        const { error } = await sb.from('viajes').upsert(viajesClean, { onConflict: 'tripId' });
-                        if (error) throw error;
-                        console.log('✅ Batch guardado en Supabase:', viajesClean.length, 'viajes');
-                    } catch (err) {
-                        console.error('❌ Error batch Supabase:', err.message);
-                    }
-                }
-
-                localStorage.setItem('antigravity_crm_data', JSON.stringify(viajesClean));
-                return { success: true };
-            },
-
-            // Eliminar viaje
-            async deleteViaje(tripId) {
-                const sb = getSupabase();
-
-                if (sb) {
-                    try {
-                        const { error } = await sb.from('viajes').delete().eq('tripId', tripId);
-                        if (error) throw error;
-                        console.log('✅ Eliminado de Supabase:', tripId);
-                    } catch (err) {
-                        console.error('❌ Error eliminando de Supabase:', err.message);
-                    }
-                }
-
-                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
-                localStorage.setItem('antigravity_crm_data', JSON.stringify(localData.filter(v => v.tripId !== tripId)));
-                return { success: true };
-            },
-
-            // Migrar datos de localStorage a Supabase
-            async migrateToSupabase() {
-                const sb = getSupabase();
-
-                if (!sb) {
-                    return { success: false, error: 'Supabase no disponible. Verifica tu conexión a internet y recarga la página.' };
-                }
-
-                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
-                if (localData.length === 0) {
-                    return { success: true, count: 0, message: 'No hay datos para migrar' };
-                }
-
-                console.log('🔄 Migrando', localData.length, 'viajes a Supabase...');
-
-                // Limpiar documentos base64
-                const viajesClean = localData.map(v => {
-                    const viaje = { ...v };
-                    if (viaje.documentos) {
-                        const docsClean = {};
-                        Object.keys(viaje.documentos).forEach(key => {
-                            const doc = viaje.documentos[key];
-                            docsClean[key] = {
-                                uploaded: doc.uploaded || false,
-                                fileName: doc.fileName || '',
-                                uploadDate: doc.uploadDate || '',
-                                storagePath: doc.storagePath || '',
-                                storageUrl: doc.storageUrl || ''
-                            };
-                        });
-                        viaje.documentos = docsClean;
-                    }
-                    return viaje;
-                });
-
-                try {
-                    const { error } = await sb.from('viajes').upsert(viajesClean, { onConflict: 'tripId' });
-                    if (error) throw error;
-                    console.log('✅ Migración completada:', viajesClean.length, 'viajes');
-                    return { success: true, count: viajesClean.length };
-                } catch (err) {
-                    console.error('❌ Error en migración:', err.message);
-                    return { success: false, error: err.message };
-                }
-            }
-        };
-
-        // =====================================================
-        // BACKUP SERVICE - Backup automático a Supabase Storage
-        // =====================================================
-        const BackupService = {
-            BUCKET: 'backups',
-            FOLDER: 'viajes',
-            MAX_BACKUPS: 7,
-
-            // Generar nombre de archivo con fecha
-            getBackupFileName: () => {
-                const date = new Date().toISOString().split('T')[0];
-                return `backup_${date}.json`;
-            },
-
-            // Subir backup a Supabase Storage
-            uploadBackup: async (viajes) => {
-                const fileName = BackupService.getBackupFileName();
-                const filePath = `${BackupService.FOLDER}/${fileName}`;
-                const jsonData = JSON.stringify(viajes, null, 2);
-                const blob = new Blob([jsonData], { type: 'application/json' });
-
-                const response = await fetch(
-                    `${SUPABASE_URL}/storage/v1/object/${BackupService.BUCKET}/${filePath}`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json',
-                            'x-upsert': 'true'
-                        },
-                        body: blob
-                    }
-                );
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Error subiendo backup: ${errorText}`);
-                }
-                return { success: true, fileName };
-            },
-
-            // Listar backups existentes
-            listBackups: async () => {
-                const response = await fetch(
-                    `${SUPABASE_URL}/storage/v1/object/list/${BackupService.BUCKET}`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ prefix: BackupService.FOLDER })
-                    }
-                );
-
-                if (!response.ok) return [];
-                const files = await response.json();
-                return files.sort((a, b) => b.name.localeCompare(a.name));
-            },
-
-            // Descargar un backup específico
-            downloadBackup: async (fileName) => {
-                const filePath = `${BackupService.FOLDER}/${fileName}`;
-                const response = await fetch(
-                    `${SUPABASE_URL}/storage/v1/object/public/${BackupService.BUCKET}/${filePath}`
-                );
-
-                if (!response.ok) throw new Error('Error descargando backup');
-                return await response.json();
-            },
-
-            // Limpiar backups antiguos (mantener solo últimos 7)
-            cleanOldBackups: async () => {
-                try {
-                    const backups = await BackupService.listBackups();
-                    if (backups.length <= BackupService.MAX_BACKUPS) return;
-
-                    const toDelete = backups.slice(BackupService.MAX_BACKUPS);
-                    for (const file of toDelete) {
-                        await fetch(
-                            `${SUPABASE_URL}/storage/v1/object/${BackupService.BUCKET}/${BackupService.FOLDER}/${file.name}`,
-                            {
-                                method: 'DELETE',
-                                headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-                            }
-                        );
-                    }
-                    console.log(`🗑️ Eliminados ${toDelete.length} backups antiguos`);
-                } catch (err) {
-                    console.warn('No se pudieron limpiar backups antiguos:', err);
-                }
-            },
-
-            // Verificar si necesita backup (más de 24 horas)
-            needsBackup: () => {
-                const lastBackup = localStorage.getItem('antigravity_last_auto_backup');
-                if (!lastBackup) return true;
-
-                const lastDate = new Date(lastBackup);
-                const now = new Date();
-                const hoursDiff = (now - lastDate) / (1000 * 60 * 60);
-                return hoursDiff >= 24;
-            }
-        };
-
-        // =====================================================
-        // REALTIME SERVICE - Actualizaciones en tiempo real
-        // =====================================================
-        const RealtimeService = {
-            subscription: null,
-
-            // Iniciar escucha de cambios en tiempo real
-            subscribe(onDataChange) {
-                const sb = getSupabase();
-
-                if (!sb) {
-                    console.log('⚠️ Realtime no disponible (Supabase no conectado)');
-                    return false;
-                }
-
-                console.log('🔴 Conectando a Realtime...');
-
-                this.subscription = sb
-                    .channel('viajes-changes')
-                    .on('postgres_changes',
-                        { event: '*', schema: 'public', table: 'viajes' },
-                        (payload) => {
-                            console.log('📡 Cambio detectado:', payload.eventType);
-
-                            // Notificar al componente que hay cambios
-                            if (onDataChange) {
-                                onDataChange(payload);
-                            }
-                        }
-                    )
-                    .subscribe((status) => {
-                        if (status === 'SUBSCRIBED') {
-                            console.log('✅ Realtime conectado - Recibirás cambios en tiempo real');
-                        } else if (status === 'CHANNEL_ERROR') {
-                            console.error('❌ Error conectando a Realtime');
-                        }
-                    });
-
-                return true;
-            },
-
-            // Detener escucha
-            unsubscribe() {
-                const sb = getSupabase();
-                if (this.subscription && sb) {
-                    sb.removeChannel(this.subscription);
-                    this.subscription = null;
-                    console.log('🔴 Realtime desconectado');
-                }
-            }
-        };
-
-        // =====================================================
-        // SUPABASE AUTH SERVICE (no usado actualmente)
-        // =====================================================
-        const SupabaseAuthService = {
-            async getCurrentUser() {
-                const sb = getSupabase();
-                if (!sb) return null;
-                try { const { data: { user } } = await sb.auth.getUser(); return user; }
-                catch { return null; }
-            },
-            async signIn(email, password) {
-                const sb = getSupabase();
-                if (!sb) return { success: false, error: 'No configurado' };
-                try {
-                    const { data, error } = await sb.auth.signInWithPassword({ email, password });
-                    if (error) throw error;
-                    return { success: true, data };
-                } catch (err) { return { success: false, error: err.message }; }
-            },
-            async signUp(email, password) {
-                const sb = getSupabase();
-                if (!sb) return { success: false, error: 'No configurado' };
-                try {
-                    const { data, error } = await sb.auth.signUp({ email, password });
-                    if (error) throw error;
-                    return { success: true, data };
-                } catch (err) { return { success: false, error: err.message }; }
-            },
-            async signOut() {
-                const sb = getSupabase();
-                if (!sb) return { success: true };
-                await sb.auth.signOut();
-                return { success: true };
-            },
-            onAuthStateChange(callback) {
-                const sb = getSupabase();
-                if (!sb) return () => {};
-                const { data: { subscription } } = sb.auth.onAuthStateChange(callback);
-                return () => subscription.unsubscribe();
-            }
-        };
-
-        // =====================================================
-        // HELPERS
-        // =====================================================
-        const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val || 0);
-        const formatNumber = (val) => new Intl.NumberFormat('es-MX').format(val || 0);
-        const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
-        const formatPercent = (val) => ((Number(val) || 0) * 100).toFixed(2) + '%';
-        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-        // =====================================================
-        // DOCUMENT TYPES - Checklist de documentos por viaje
-        // =====================================================
-        const DOCUMENT_TYPES = [
-            { id: 'booking', label: 'Booking', icon: 'FileText' },
-            { id: 'bl', label: 'BL', icon: 'Ship' },
-            { id: 'analisis', label: 'Análisis', icon: 'FileSearch' },
-            { id: 'packing', label: 'Packing List', icon: 'Package' },
-            { id: 'anticipo', label: 'Comprobante de Anticipo', icon: 'Receipt' },
-            { id: 'analisisCliente', label: 'Análisis Cliente', icon: 'ClipboardCheck' },
-            { id: 'factura', label: 'Factura', icon: 'FileText' },
-            { id: 'facturaPreliminar', label: 'Factura Preliminar', icon: 'FileClock' }
-        ];
-
-        const createEmptyDocumentos = () => {
-            const docs = {};
-            DOCUMENT_TYPES.forEach(dt => {
-                docs[dt.id] = { uploaded: false, fileName: '', uploadDate: '', storagePath: '', storageUrl: '' };
-            });
-            return docs;
-        };
-
-        const countUploadedDocs = (documentos) => {
-            if (!documentos) return 0;
-            return Object.values(documentos).filter(d => d && d.uploaded).length;
-        };
-
-        const getDocsColor = (count) => {
-            if (count === 0) return 'var(--text-muted)';
-            if (count <= 3) return 'var(--danger)';
-            if (count <= 5) return 'var(--warning)';
-            if (count <= 7) return 'var(--info)';
-            return 'var(--success)'; // 8 = completo
-        };
-
-        // =====================================================
-        // SUPABASE STORAGE - Usando fetch directo (funciona sin librería)
-        // =====================================================
-        const StorageService = {
-            bucketName: 'documentos',
-
-            // Subir archivo a Supabase Storage usando fetch directo
-            // customFileName es opcional - si se proporciona, se usa en lugar del nombre original
-            async uploadFile(file, tripId, docTypeId, customFileName = null) {
-                const timestamp = Date.now();
-                const safeName = customFileName
-                    ? customFileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-                    : file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-                const path = `${tripId}/${docTypeId}_${timestamp}_${safeName}`;
-
-                const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${this.bucketName}/${path}`;
-
-                const response = await fetch(uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Content-Type': file.type || 'application/pdf',
-                        'x-upsert': 'true'
-                    },
-                    body: file
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `Error ${response.status} al subir archivo`);
-                }
-
-                // URL pública del archivo
-                const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${this.bucketName}/${path}`;
-
-                return {
-                    path: path,
-                    url: publicUrl
-                };
-            },
-
-            // Eliminar archivo de Storage
-            async deleteFile(path) {
-                if (!path) return;
-
-                try {
-                    const deleteUrl = `${SUPABASE_URL}/storage/v1/object/${this.bucketName}/${path}`;
-                    await fetch(deleteUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'apikey': SUPABASE_ANON_KEY
-                        }
-                    });
-                } catch (err) {
-                    console.error('Error eliminando archivo:', err);
-                }
-            },
-
-            // Obtener URL pública de un archivo
-            getPublicUrl(path) {
-                if (!path) return null;
-                return `${SUPABASE_URL}/storage/v1/object/public/${this.bucketName}/${path}`;
-            }
-        };
-
-        // Funciones para manejo de PDFs (compatibles con Storage y Base64)
-        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB con Supabase Storage
-
-        // Extraer solo la primera página de un PDF usando pdf-lib
-        const extractFirstPage = async (file) => {
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-                const pageCount = pdfDoc.getPageCount();
-
-                // Si solo tiene una página, retornar el archivo original
-                if (pageCount === 1) {
-                    return file;
-                }
-
-                // Crear nuevo PDF con solo la primera página
-                const newPdf = await PDFLib.PDFDocument.create();
-                const [firstPage] = await newPdf.copyPages(pdfDoc, [0]);
-                newPdf.addPage(firstPage);
-
-                // Convertir a Blob
-                const pdfBytes = await newPdf.save();
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-
-                console.log(`PDF procesado: ${pageCount} páginas → 1 página`);
-                return blob;
-            } catch (err) {
-                console.error('Error extrayendo primera página:', err);
-                // Si falla, retornar el archivo original
-                return file;
-            }
-        };
-
-        const downloadPdf = (doc) => {
-            const url = doc.storageUrl || doc.base64;
-            if (!url) return;
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = doc.fileName || 'documento.pdf';
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
-        const viewPdfInNewTab = (doc) => {
-            // Soporta tanto el nuevo formato (objeto) como el viejo (string base64)
-            const url = typeof doc === 'string' ? doc : (doc.storageUrl || doc.base64);
-            if (!url) {
-                alert('No se encontró el archivo');
-                return;
-            }
-
-            // Si es URL de Supabase Storage, abrir directo
-            if (url.startsWith('http')) {
-                // Crear ventana con visor de PDF
-                const newWindow = window.open('', '_blank');
-                if (newWindow) {
-                    newWindow.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>${doc.fileName || 'Documento PDF'}</title>
-                            <style>
-                                body { margin: 0; padding: 0; background: #525659; }
-                                iframe { width: 100%; height: 100vh; border: none; }
-                            </style>
-                        </head>
-                        <body>
-                            <iframe src="${url}" type="application/pdf"></iframe>
-                        </body>
-                        </html>
-                    `);
-                    newWindow.document.close();
-                } else {
-                    // Si el navegador bloquea popups, abrir directo
-                    window.location.href = url;
-                }
-            } else {
-                // Es base64, abrir en nueva ventana
-                const newWindow = window.open('', '_blank');
-                if (newWindow) {
-                    newWindow.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>${doc.fileName || 'Documento PDF'}</title>
-                            <style>
-                                body { margin: 0; padding: 0; }
-                                iframe { width: 100%; height: 100vh; border: none; }
-                            </style>
-                        </head>
-                        <body>
-                            <iframe src="${url}"></iframe>
-                        </body>
-                        </html>
-                    `);
-                    newWindow.document.close();
-                }
-            }
-        };
-
-        const robustParseDate = (val) => {
-            if (!val) return null;
-            if (val instanceof Date) return isNaN(val.getTime()) ? null : new Date(val.getFullYear(), val.getMonth(), val.getDate());
-            if (typeof val === 'number') {
-                const d = XLSX.SSF.parse_date_code(val);
-                return new Date(d.y, d.m - 1, d.d);
-            }
-            const str = val.toString().trim();
-            if (!str || str.toLowerCase() === 'verde') return null;
-
-            // Soporte para fechas en español: "21 Noviembre 2025" / "21 de Noviembre de 2025"
-            const cleaned = str.toLowerCase().replace(/\s+/g, ' ').replace(/\bde\b/g, '').trim();
-            const spanishMatch = cleaned.match(/^(\d{1,2})\s+([a-záéíóúñ]+)\s+(\d{4})$/i);
-            if (spanishMatch) {
-                const d = Number(spanishMatch[1]);
-                const monName = spanishMatch[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                const y = Number(spanishMatch[3]);
-                const months = {
-                    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
-                    julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
-                };
-                if (months[monName] !== undefined) return new Date(y, months[monName], d);
-            }
-
-            // ISO format: 2024-01-20, 2024-01-20T00:00:00, 2024-01-20T00:00:00.000Z
-            // IMPORTANTE: Buscar YYYY-MM-DD en cualquier parte del string para evitar problemas de timezone
-            const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
-            if (isoMatch) {
-                return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
-            }
-
-            // Otros formatos: YYYY/MM/DD o DD/MM/YYYY o DD-MM-YYYY
-            const formats = [/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/, /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/];
-            for (let fmt of formats) {
-                const m = str.match(fmt);
-                if (m) {
-                    if (fmt === formats[0]) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-                    let [_, d, mo, y] = m.map(Number);
-                    if (mo > 12) [d, mo] = [mo, d];
-                    return new Date(y, mo - 1, d);
-                }
-            }
-
-            // Último recurso - parsear y extraer solo año/mes/día para evitar timezone
-            const parsed = new Date(str);
-            if (!isNaN(parsed.getTime())) {
-                // IMPORTANTE: Usar getUTCFullYear/Month/Date si parece ser UTC, sino usar local
-                // Si el string contiene Z o +/- timezone, es UTC
-                if (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
-                    return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
-                }
-                return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-            }
-            return null;
-        };
-
-        const formatDateSpanish = (val) => {
-            if (val === 'Verde') return null; // No mostrar fecha para Verde
-            const d = robustParseDate(val);
-            if (!d) return '-';
-            return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
-        };
-
-        const formatDateForInput = (val) => {
-            if (!val || val === 'Verde') return '';
-            const d = robustParseDate(val);
-            if (!d) return '';
-            // IMPORTANTE: No usar toISOString() porque convierte a UTC y puede cambiar el día
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-
-        const generateUUID = () => {
-            if (crypto?.randomUUID) return crypto.randomUUID();
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-                const r = Math.random() * 16 | 0;
-                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-            });
-        };
-
-        const getDaysUntil = (val) => {
-            if (val === 'Verde') return null; // Verde = completado
-            const d = robustParseDate(val);
-            if (!d) return null;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-        };
-
-        // =====================================================
-        // EXCEL EXPORT/IMPORT SERVICE
-        // =====================================================
-        // Columnas para Excel y Google Sheets (deben coincidir)
-        // IMPORTANTE: Incluye TODOS los campos del formulario
-        const EXPORT_COLUMNS = [
-            'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
-            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Costo agencia',
-            '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
-            'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
         // =====================================================
         // DATOS INICIALES - 54 viajes pre-cargados
@@ -3139,6 +2431,715 @@
             "$deben": 0
           }
         ];
+
+        const DatabaseService = {
+            // Obtener viajes - Supabase es la fuente principal
+            async getViajes() {
+                const sb = getSupabase();
+                let viajes = [];
+
+                // Si no hay Supabase, usar localStorage
+                if (!sb) {
+                    console.log('📦 Cargando desde localStorage (Supabase no disponible)');
+                    const saved = localStorage.getItem('antigravity_crm_data');
+                    viajes = saved ? JSON.parse(saved) : [];
+                } else {
+                    try {
+                        console.log('☁️ Cargando desde Supabase...');
+                        const { data, error } = await sb.from('viajes').select('*').order('created_at', { ascending: false });
+                        if (error) throw error;
+
+                        // Guardar copia local como respaldo
+                        if (data && data.length > 0) {
+                            localStorage.setItem('antigravity_crm_data', JSON.stringify(data));
+                            console.log('✅ Supabase: Cargados', data.length, 'viajes');
+                        }
+                        viajes = data || [];
+                    } catch (err) {
+                        console.error('❌ Error Supabase, usando localStorage:', err.message);
+                        const saved = localStorage.getItem('antigravity_crm_data');
+                        viajes = saved ? JSON.parse(saved) : [];
+                    }
+                }
+
+                // Si no hay datos, usar los viajes iniciales pre-cargados
+                if (viajes.length === 0 && typeof INITIAL_VIAJES !== 'undefined' && INITIAL_VIAJES.length > 0) {
+                    console.log('📦 Cargando viajes iniciales pre-definidos (54 viajes)...');
+                    viajes = [...INITIAL_VIAJES];
+                    // Guardar en localStorage para futuras cargas
+                    localStorage.setItem('antigravity_crm_data', JSON.stringify(viajes));
+                }
+
+                return viajes;
+            },
+
+            // Guardar viaje - Guarda en Supabase primero, luego localStorage
+            async saveViaje(viaje) {
+                const sb = getSupabase();
+
+                // Preparar documento para guardar (sin base64 grandes)
+                const viajeParaGuardar = { ...viaje };
+                if (viajeParaGuardar.documentos) {
+                    const docsClean = {};
+                    Object.keys(viajeParaGuardar.documentos).forEach(key => {
+                        const doc = viajeParaGuardar.documentos[key];
+                        docsClean[key] = {
+                            uploaded: doc.uploaded || false,
+                            fileName: doc.fileName || '',
+                            uploadDate: doc.uploadDate || '',
+                            storagePath: doc.storagePath || '',
+                            storageUrl: doc.storageUrl || ''
+                            // No incluir base64 - archivos están en Supabase Storage
+                        };
+                    });
+                    viajeParaGuardar.documentos = docsClean;
+                }
+
+                // Si hay Supabase, guardar ahí primero
+                if (sb) {
+                    try {
+                        const { error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' });
+                        if (error) throw error;
+                        console.log('✅ Guardado en Supabase:', viajeParaGuardar.Nombre || viajeParaGuardar.tripId);
+                    } catch (err) {
+                        console.error('❌ Error guardando en Supabase:', err.message);
+                        // Continuar para guardar en localStorage como respaldo
+                    }
+                }
+
+                // Guardar también en localStorage como respaldo
+                try {
+                    const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                    const idx = localData.findIndex(v => v.tripId === viajeParaGuardar.tripId);
+                    if (idx >= 0) localData[idx] = viajeParaGuardar;
+                    else localData.unshift(viajeParaGuardar);
+                    localStorage.setItem('antigravity_crm_data', JSON.stringify(localData));
+                } catch (storageErr) {
+                    console.error('Error en localStorage:', storageErr);
+                }
+
+                return { success: true };
+            },
+
+            // Guardar múltiples viajes
+            async saveViajesBatch(viajes) {
+                const sb = getSupabase();
+
+                // Limpiar documentos base64 para Supabase
+                const viajesClean = viajes.map(v => {
+                    const viaje = { ...v };
+                    if (viaje.documentos) {
+                        const docsClean = {};
+                        Object.keys(viaje.documentos).forEach(key => {
+                            const doc = viaje.documentos[key];
+                            docsClean[key] = {
+                                uploaded: doc.uploaded || false,
+                                fileName: doc.fileName || '',
+                                uploadDate: doc.uploadDate || '',
+                                storagePath: doc.storagePath || '',
+                                storageUrl: doc.storageUrl || ''
+                            };
+                        });
+                        viaje.documentos = docsClean;
+                    }
+                    return viaje;
+                });
+
+                if (sb) {
+                    try {
+                        const { error } = await sb.from('viajes').upsert(viajesClean, { onConflict: 'tripId' });
+                        if (error) throw error;
+                        console.log('✅ Batch guardado en Supabase:', viajesClean.length, 'viajes');
+                    } catch (err) {
+                        console.error('❌ Error batch Supabase:', err.message);
+                    }
+                }
+
+                localStorage.setItem('antigravity_crm_data', JSON.stringify(viajesClean));
+                return { success: true };
+            },
+
+            // Eliminar viaje
+            async deleteViaje(tripId) {
+                const sb = getSupabase();
+
+                if (sb) {
+                    try {
+                        const { error } = await sb.from('viajes').delete().eq('tripId', tripId);
+                        if (error) throw error;
+                        console.log('✅ Eliminado de Supabase:', tripId);
+                    } catch (err) {
+                        console.error('❌ Error eliminando de Supabase:', err.message);
+                    }
+                }
+
+                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                localStorage.setItem('antigravity_crm_data', JSON.stringify(localData.filter(v => v.tripId !== tripId)));
+                return { success: true };
+            },
+
+            // Migrar datos de localStorage a Supabase
+            async migrateToSupabase() {
+                const sb = getSupabase();
+
+                if (!sb) {
+                    return { success: false, error: 'Supabase no disponible. Verifica tu conexión a internet y recarga la página.' };
+                }
+
+                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                if (localData.length === 0) {
+                    return { success: true, count: 0, message: 'No hay datos para migrar' };
+                }
+
+                console.log('🔄 Migrando', localData.length, 'viajes a Supabase...');
+
+                // Limpiar documentos base64
+                const viajesClean = localData.map(v => {
+                    const viaje = { ...v };
+                    if (viaje.documentos) {
+                        const docsClean = {};
+                        Object.keys(viaje.documentos).forEach(key => {
+                            const doc = viaje.documentos[key];
+                            docsClean[key] = {
+                                uploaded: doc.uploaded || false,
+                                fileName: doc.fileName || '',
+                                uploadDate: doc.uploadDate || '',
+                                storagePath: doc.storagePath || '',
+                                storageUrl: doc.storageUrl || ''
+                            };
+                        });
+                        viaje.documentos = docsClean;
+                    }
+                    return viaje;
+                });
+
+                try {
+                    const { error } = await sb.from('viajes').upsert(viajesClean, { onConflict: 'tripId' });
+                    if (error) throw error;
+                    console.log('✅ Migración completada:', viajesClean.length, 'viajes');
+                    return { success: true, count: viajesClean.length };
+                } catch (err) {
+                    console.error('❌ Error en migración:', err.message);
+                    return { success: false, error: err.message };
+                }
+            }
+        };
+
+        // =====================================================
+        // BACKUP SERVICE - Backup automático a Supabase Storage
+        // =====================================================
+        const BackupService = {
+            BUCKET: 'backups',
+            FOLDER: 'viajes',
+            MAX_BACKUPS: 7,
+
+            // Generar nombre de archivo con fecha
+            getBackupFileName: () => {
+                const date = new Date().toISOString().split('T')[0];
+                return `backup_${date}.json`;
+            },
+
+            // Subir backup a Supabase Storage
+            uploadBackup: async (viajes) => {
+                const fileName = BackupService.getBackupFileName();
+                const filePath = `${BackupService.FOLDER}/${fileName}`;
+                const jsonData = JSON.stringify(viajes, null, 2);
+                const blob = new Blob([jsonData], { type: 'application/json' });
+
+                const response = await fetch(
+                    `${SUPABASE_URL}/storage/v1/object/${BackupService.BUCKET}/${filePath}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json',
+                            'x-upsert': 'true'
+                        },
+                        body: blob
+                    }
+                );
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Error subiendo backup: ${errorText}`);
+                }
+                return { success: true, fileName };
+            },
+
+            // Listar backups existentes
+            listBackups: async () => {
+                const response = await fetch(
+                    `${SUPABASE_URL}/storage/v1/object/list/${BackupService.BUCKET}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ prefix: BackupService.FOLDER })
+                    }
+                );
+
+                if (!response.ok) return [];
+                const files = await response.json();
+                return files.sort((a, b) => b.name.localeCompare(a.name));
+            },
+
+            // Descargar un backup específico
+            downloadBackup: async (fileName) => {
+                const filePath = `${BackupService.FOLDER}/${fileName}`;
+                const response = await fetch(
+                    `${SUPABASE_URL}/storage/v1/object/public/${BackupService.BUCKET}/${filePath}`
+                );
+
+                if (!response.ok) throw new Error('Error descargando backup');
+                return await response.json();
+            },
+
+            // Limpiar backups antiguos (mantener solo últimos 7)
+            cleanOldBackups: async () => {
+                try {
+                    const backups = await BackupService.listBackups();
+                    if (backups.length <= BackupService.MAX_BACKUPS) return;
+
+                    const toDelete = backups.slice(BackupService.MAX_BACKUPS);
+                    for (const file of toDelete) {
+                        await fetch(
+                            `${SUPABASE_URL}/storage/v1/object/${BackupService.BUCKET}/${BackupService.FOLDER}/${file.name}`,
+                            {
+                                method: 'DELETE',
+                                headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+                            }
+                        );
+                    }
+                    console.log(`🗑️ Eliminados ${toDelete.length} backups antiguos`);
+                } catch (err) {
+                    console.warn('No se pudieron limpiar backups antiguos:', err);
+                }
+            },
+
+            // Verificar si necesita backup (más de 24 horas)
+            needsBackup: () => {
+                const lastBackup = localStorage.getItem('antigravity_last_auto_backup');
+                if (!lastBackup) return true;
+
+                const lastDate = new Date(lastBackup);
+                const now = new Date();
+                const hoursDiff = (now - lastDate) / (1000 * 60 * 60);
+                return hoursDiff >= 24;
+            }
+        };
+
+        // =====================================================
+        // REALTIME SERVICE - Actualizaciones en tiempo real
+        // =====================================================
+        const RealtimeService = {
+            subscription: null,
+
+            // Iniciar escucha de cambios en tiempo real
+            subscribe(onDataChange) {
+                const sb = getSupabase();
+
+                if (!sb) {
+                    console.log('⚠️ Realtime no disponible (Supabase no conectado)');
+                    return false;
+                }
+
+                console.log('🔴 Conectando a Realtime...');
+
+                this.subscription = sb
+                    .channel('viajes-changes')
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'viajes' },
+                        (payload) => {
+                            console.log('📡 Cambio detectado:', payload.eventType);
+
+                            // Notificar al componente que hay cambios
+                            if (onDataChange) {
+                                onDataChange(payload);
+                            }
+                        }
+                    )
+                    .subscribe((status) => {
+                        if (status === 'SUBSCRIBED') {
+                            console.log('✅ Realtime conectado - Recibirás cambios en tiempo real');
+                        } else if (status === 'CHANNEL_ERROR') {
+                            console.error('❌ Error conectando a Realtime');
+                        }
+                    });
+
+                return true;
+            },
+
+            // Detener escucha
+            unsubscribe() {
+                const sb = getSupabase();
+                if (this.subscription && sb) {
+                    sb.removeChannel(this.subscription);
+                    this.subscription = null;
+                    console.log('🔴 Realtime desconectado');
+                }
+            }
+        };
+
+        // =====================================================
+        // SUPABASE AUTH SERVICE (no usado actualmente)
+        // =====================================================
+        const SupabaseAuthService = {
+            async getCurrentUser() {
+                const sb = getSupabase();
+                if (!sb) return null;
+                try { const { data: { user } } = await sb.auth.getUser(); return user; }
+                catch { return null; }
+            },
+            async signIn(email, password) {
+                const sb = getSupabase();
+                if (!sb) return { success: false, error: 'No configurado' };
+                try {
+                    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    return { success: true, data };
+                } catch (err) { return { success: false, error: err.message }; }
+            },
+            async signUp(email, password) {
+                const sb = getSupabase();
+                if (!sb) return { success: false, error: 'No configurado' };
+                try {
+                    const { data, error } = await sb.auth.signUp({ email, password });
+                    if (error) throw error;
+                    return { success: true, data };
+                } catch (err) { return { success: false, error: err.message }; }
+            },
+            async signOut() {
+                const sb = getSupabase();
+                if (!sb) return { success: true };
+                await sb.auth.signOut();
+                return { success: true };
+            },
+            onAuthStateChange(callback) {
+                const sb = getSupabase();
+                if (!sb) return () => {};
+                const { data: { subscription } } = sb.auth.onAuthStateChange(callback);
+                return () => subscription.unsubscribe();
+            }
+        };
+
+        // =====================================================
+        // HELPERS
+        // =====================================================
+        const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val || 0);
+        const formatNumber = (val) => new Intl.NumberFormat('es-MX').format(val || 0);
+        const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+        const formatPercent = (val) => ((Number(val) || 0) * 100).toFixed(2) + '%';
+        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        // =====================================================
+        // DOCUMENT TYPES - Checklist de documentos por viaje
+        // =====================================================
+        const DOCUMENT_TYPES = [
+            { id: 'booking', label: 'Booking', icon: 'FileText' },
+            { id: 'bl', label: 'BL', icon: 'Ship' },
+            { id: 'analisis', label: 'Análisis', icon: 'FileSearch' },
+            { id: 'packing', label: 'Packing List', icon: 'Package' },
+            { id: 'anticipo', label: 'Comprobante de Anticipo', icon: 'Receipt' },
+            { id: 'analisisCliente', label: 'Análisis Cliente', icon: 'ClipboardCheck' },
+            { id: 'factura', label: 'Factura', icon: 'FileText' },
+            { id: 'facturaPreliminar', label: 'Factura Preliminar', icon: 'FileClock' }
+        ];
+
+        const createEmptyDocumentos = () => {
+            const docs = {};
+            DOCUMENT_TYPES.forEach(dt => {
+                docs[dt.id] = { uploaded: false, fileName: '', uploadDate: '', storagePath: '', storageUrl: '' };
+            });
+            return docs;
+        };
+
+        const countUploadedDocs = (documentos) => {
+            if (!documentos) return 0;
+            return Object.values(documentos).filter(d => d && d.uploaded).length;
+        };
+
+        const getDocsColor = (count) => {
+            if (count === 0) return 'var(--text-muted)';
+            if (count <= 3) return 'var(--danger)';
+            if (count <= 5) return 'var(--warning)';
+            if (count <= 7) return 'var(--info)';
+            return 'var(--success)'; // 8 = completo
+        };
+
+        // =====================================================
+        // SUPABASE STORAGE - Usando fetch directo (funciona sin librería)
+        // =====================================================
+        const StorageService = {
+            bucketName: 'documentos',
+
+            // Subir archivo a Supabase Storage usando fetch directo
+            // customFileName es opcional - si se proporciona, se usa en lugar del nombre original
+            async uploadFile(file, tripId, docTypeId, customFileName = null) {
+                const timestamp = Date.now();
+                const safeName = customFileName
+                    ? customFileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+                    : file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const path = `${tripId}/${docTypeId}_${timestamp}_${safeName}`;
+
+                const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${this.bucketName}/${path}`;
+
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Content-Type': file.type || 'application/pdf',
+                        'x-upsert': 'true'
+                    },
+                    body: file
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Error ${response.status} al subir archivo`);
+                }
+
+                // URL pública del archivo
+                const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${this.bucketName}/${path}`;
+
+                return {
+                    path: path,
+                    url: publicUrl
+                };
+            },
+
+            // Eliminar archivo de Storage
+            async deleteFile(path) {
+                if (!path) return;
+
+                try {
+                    const deleteUrl = `${SUPABASE_URL}/storage/v1/object/${this.bucketName}/${path}`;
+                    await fetch(deleteUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'apikey': SUPABASE_ANON_KEY
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error eliminando archivo:', err);
+                }
+            },
+
+            // Obtener URL pública de un archivo
+            getPublicUrl(path) {
+                if (!path) return null;
+                return `${SUPABASE_URL}/storage/v1/object/public/${this.bucketName}/${path}`;
+            }
+        };
+
+        // Funciones para manejo de PDFs (compatibles con Storage y Base64)
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB con Supabase Storage
+
+        // Extraer solo la primera página de un PDF usando pdf-lib
+        const extractFirstPage = async (file) => {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pageCount = pdfDoc.getPageCount();
+
+                // Si solo tiene una página, retornar el archivo original
+                if (pageCount === 1) {
+                    return file;
+                }
+
+                // Crear nuevo PDF con solo la primera página
+                const newPdf = await PDFLib.PDFDocument.create();
+                const [firstPage] = await newPdf.copyPages(pdfDoc, [0]);
+                newPdf.addPage(firstPage);
+
+                // Convertir a Blob
+                const pdfBytes = await newPdf.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+                console.log(`PDF procesado: ${pageCount} páginas → 1 página`);
+                return blob;
+            } catch (err) {
+                console.error('Error extrayendo primera página:', err);
+                // Si falla, retornar el archivo original
+                return file;
+            }
+        };
+
+        const downloadPdf = (doc) => {
+            const url = doc.storageUrl || doc.base64;
+            if (!url) return;
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = doc.fileName || 'documento.pdf';
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        const viewPdfInNewTab = (doc) => {
+            // Soporta tanto el nuevo formato (objeto) como el viejo (string base64)
+            const url = typeof doc === 'string' ? doc : (doc.storageUrl || doc.base64);
+            if (!url) {
+                alert('No se encontró el archivo');
+                return;
+            }
+
+            // Si es URL de Supabase Storage, abrir directo
+            if (url.startsWith('http')) {
+                // Crear ventana con visor de PDF
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>${doc.fileName || 'Documento PDF'}</title>
+                            <style>
+                                body { margin: 0; padding: 0; background: #525659; }
+                                iframe { width: 100%; height: 100vh; border: none; }
+                            </style>
+                        </head>
+                        <body>
+                            <iframe src="${url}" type="application/pdf"></iframe>
+                        </body>
+                        </html>
+                    `);
+                    newWindow.document.close();
+                } else {
+                    // Si el navegador bloquea popups, abrir directo
+                    window.location.href = url;
+                }
+            } else {
+                // Es base64, abrir en nueva ventana
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>${doc.fileName || 'Documento PDF'}</title>
+                            <style>
+                                body { margin: 0; padding: 0; }
+                                iframe { width: 100%; height: 100vh; border: none; }
+                            </style>
+                        </head>
+                        <body>
+                            <iframe src="${url}"></iframe>
+                        </body>
+                        </html>
+                    `);
+                    newWindow.document.close();
+                }
+            }
+        };
+
+        const robustParseDate = (val) => {
+            if (!val) return null;
+            if (val instanceof Date) return isNaN(val.getTime()) ? null : new Date(val.getFullYear(), val.getMonth(), val.getDate());
+            if (typeof val === 'number') {
+                const d = XLSX.SSF.parse_date_code(val);
+                return new Date(d.y, d.m - 1, d.d);
+            }
+            const str = val.toString().trim();
+            if (!str || str.toLowerCase() === 'verde') return null;
+
+            // Soporte para fechas en español: "21 Noviembre 2025" / "21 de Noviembre de 2025"
+            const cleaned = str.toLowerCase().replace(/\s+/g, ' ').replace(/\bde\b/g, '').trim();
+            const spanishMatch = cleaned.match(/^(\d{1,2})\s+([a-záéíóúñ]+)\s+(\d{4})$/i);
+            if (spanishMatch) {
+                const d = Number(spanishMatch[1]);
+                const monName = spanishMatch[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const y = Number(spanishMatch[3]);
+                const months = {
+                    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+                    julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+                };
+                if (months[monName] !== undefined) return new Date(y, months[monName], d);
+            }
+
+            // ISO format: 2024-01-20, 2024-01-20T00:00:00, 2024-01-20T00:00:00.000Z
+            // IMPORTANTE: Buscar YYYY-MM-DD en cualquier parte del string para evitar problemas de timezone
+            const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (isoMatch) {
+                return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+            }
+
+            // Otros formatos: YYYY/MM/DD o DD/MM/YYYY o DD-MM-YYYY
+            const formats = [/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/, /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/];
+            for (let fmt of formats) {
+                const m = str.match(fmt);
+                if (m) {
+                    if (fmt === formats[0]) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+                    let [_, d, mo, y] = m.map(Number);
+                    if (mo > 12) [d, mo] = [mo, d];
+                    return new Date(y, mo - 1, d);
+                }
+            }
+
+            // Último recurso - parsear y extraer solo año/mes/día para evitar timezone
+            const parsed = new Date(str);
+            if (!isNaN(parsed.getTime())) {
+                // IMPORTANTE: Usar getUTCFullYear/Month/Date si parece ser UTC, sino usar local
+                // Si el string contiene Z o +/- timezone, es UTC
+                if (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
+                    return new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+                }
+                return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+            }
+            return null;
+        };
+
+        const formatDateSpanish = (val) => {
+            if (val === 'Verde') return null; // No mostrar fecha para Verde
+            const d = robustParseDate(val);
+            if (!d) return '-';
+            return `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
+        };
+
+        const formatDateForInput = (val) => {
+            if (!val || val === 'Verde') return '';
+            const d = robustParseDate(val);
+            if (!d) return '';
+            // IMPORTANTE: No usar toISOString() porque convierte a UTC y puede cambiar el día
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const generateUUID = () => {
+            if (crypto?.randomUUID) return crypto.randomUUID();
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        };
+
+        const getDaysUntil = (val) => {
+            if (val === 'Verde') return null; // Verde = completado
+            const d = robustParseDate(val);
+            if (!d) return null;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+        };
+
+        // =====================================================
+        // EXCEL EXPORT/IMPORT SERVICE
+        // =====================================================
+        // Columnas para Excel y Google Sheets (deben coincidir)
+        // IMPORTANTE: Incluye TODOS los campos del formulario
+        const EXPORT_COLUMNS = [
+            'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
+            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Costo agencia',
+            '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
+            'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
 
         // Formatear fecha a DD/MM/YYYY para Excel
         // IMPORTANTE: Sumamos 1 día para compensar el offset de timezone de XLSX
