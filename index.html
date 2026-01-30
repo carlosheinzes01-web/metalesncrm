@@ -1189,6 +1189,38 @@
         // Cliente de Supabase - se inicializa bajo demanda
         let _supabaseClient = null;
 
+        // Esperar a que la librería Supabase esté disponible (máximo 5 segundos)
+        const waitForSupabase = (maxWait = 5000) => {
+            return new Promise((resolve) => {
+                // Si ya está disponible, resolver inmediatamente
+                if (window.supabase) {
+                    resolve(true);
+                    return;
+                }
+
+                // Si no está configurado, no esperar
+                if (!isSupabaseConfigured) {
+                    console.log('⚠️ Supabase no configurado, usando modo offline');
+                    resolve(false);
+                    return;
+                }
+
+                console.log('⏳ Esperando a que Supabase esté listo...');
+                const startTime = Date.now();
+                const checkInterval = setInterval(() => {
+                    if (window.supabase) {
+                        clearInterval(checkInterval);
+                        console.log('✅ Librería Supabase cargada');
+                        resolve(true);
+                    } else if (Date.now() - startTime > maxWait) {
+                        clearInterval(checkInterval);
+                        console.warn('⚠️ Timeout esperando librería Supabase (modo offline)');
+                        resolve(false);
+                    }
+                }, 100);
+            });
+        };
+
         // Función getter que SIEMPRE devuelve el cliente actualizado
         const getSupabase = () => {
             // Si ya existe, devolverlo
@@ -2434,6 +2466,9 @@
         const DatabaseService = {
             // Obtener viajes - Supabase es la fuente principal
             async getViajes() {
+                // Esperar a que Supabase esté listo antes de intentar cargar
+                await waitForSupabase();
+
                 const sb = getSupabase();
                 let viajes = [];
 
@@ -6662,7 +6697,15 @@
 
             useEffect(() => {
                 const init = async () => {
-                    // Cargar datos directamente (sin contraseña)
+                    // Esperar a que Supabase esté listo antes de cargar datos
+                    const supabaseReady = await waitForSupabase();
+                    if (supabaseReady) {
+                        console.log('✅ Supabase listo, cargando datos desde la nube...');
+                    } else {
+                        console.warn('⚠️ Cargando en modo offline (localStorage)');
+                    }
+
+                    // Cargar datos (ahora esperará a Supabase)
                     await loadData();
                     setAppState('app');
 
