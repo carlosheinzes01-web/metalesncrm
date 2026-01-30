@@ -3708,7 +3708,7 @@
             );
         };
 
-        const Header = ({ title, data, notifications, onSearch, onNotification, theme, setTheme, startDate, endDate, onDateChange, onSyncFromSheets, syncingFromSheets, onBackup, backingUp, lastBackup, lastAutoBackup }) => {
+        const Header = ({ title, data, notifications, onSearch, onNotification, theme, setTheme, startDate, endDate, onDateChange, onSyncFromSheets, syncingFromSheets, onBackup, backingUp, lastBackup, lastAutoBackup, supabaseConnected }) => {
             useEffect(() => { lucide.createIcons(); }, [syncingFromSheets, backingUp]);
 
             const formatLastBackup = (iso) => {
@@ -3727,6 +3727,27 @@
             return (
                 <div className="header">
                     <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{title}</h1>
+                    {/* Indicador de conexión Supabase */}
+                    <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '12px',
+                        fontSize: '0.7rem',
+                        fontWeight: 500,
+                        background: supabaseConnected ? '#d4edda' : '#f8d7da',
+                        color: supabaseConnected ? '#155724' : '#721c24',
+                        marginLeft: '0.5rem'
+                    }}>
+                        <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: supabaseConnected ? '#28a745' : '#dc3545'
+                        }}></span>
+                        {supabaseConnected ? 'Nube' : 'Offline'}
+                    </span>
                     <div className="header-right">
                         <DateRangePicker startDate={startDate} endDate={endDate} onChange={onDateChange} />
                         <GlobalSearch data={data} onSelect={onSearch} />
@@ -6714,8 +6735,10 @@
                     const supabaseReady = await waitForSupabase();
                     if (supabaseReady) {
                         console.log('✅ Supabase listo, cargando datos desde la nube...');
+                        setSupabaseConnected(true);
                     } else {
                         console.warn('⚠️ Cargando en modo offline (localStorage)');
+                        setSupabaseConnected(false);
                     }
 
                     // Cargar datos (ahora esperará a Supabase)
@@ -7013,6 +7036,7 @@
             const [lastBackup, setLastBackup] = useState(() => localStorage.getItem('antigravity_last_backup') || null);
             const [lastAutoBackup, setLastAutoBackup] = useState(() => localStorage.getItem('antigravity_last_auto_backup') || null);
             const [realtimeConnected, setRealtimeConnected] = useState(false);
+            const [supabaseConnected, setSupabaseConnected] = useState(false);
             const [migrating, setMigrating] = useState(false);
 
             // =====================================================
@@ -7150,7 +7174,7 @@
                 <>
                     <Sidebar activePage={page} setPage={setPage} user={user} onLogout={() => { AuthService.logout(); setUser(null); setData([]); setAppState('login'); }} isOnline={isSupabaseConfigured && user} />
                     <div className="main-container">
-                        <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} onSyncFromSheets={handleSyncFromSheets} syncingFromSheets={syncingFromSheets} onBackup={handleBackupToSheets} backingUp={backingUp} lastBackup={lastBackup} lastAutoBackup={lastAutoBackup} />
+                        <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} onSyncFromSheets={handleSyncFromSheets} syncingFromSheets={syncingFromSheets} onBackup={handleBackupToSheets} backingUp={backingUp} lastBackup={lastBackup} lastAutoBackup={lastAutoBackup} supabaseConnected={supabaseConnected} />
                         <div className="content-scroll">
                             {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} />}
                             {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} />}
