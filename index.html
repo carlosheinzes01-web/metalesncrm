@@ -5002,7 +5002,11 @@
                             <table>
                                 <thead><tr><th>Nombre</th><th>Booking</th><th>Contenedores</th><th>Peso</th><th>Analisis</th><th>Venta Total</th><th>Anticipo</th><th></th></tr></thead>
                                 <tbody>
-                                    {data.slice(0, 8).map((r, i) => (
+                                    {[...data].sort((a, b) => {
+                                        const dateA = robustParseDate(a.Fecha)?.getTime() || 0;
+                                        const dateB = robustParseDate(b.Fecha)?.getTime() || 0;
+                                        return dateB - dateA;
+                                    }).slice(0, 8).map((r, i) => (
                                         <tr key={r.tripId || i}>
                                             <td style={{ fontWeight: 500 }}>{r.Nombre || '-'}</td>
                                             <td>{r['Numero de booking'] || '-'}</td>
