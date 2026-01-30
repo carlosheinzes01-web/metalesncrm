@@ -2509,7 +2509,16 @@
 
             // Guardar viaje - Guarda en Supabase primero, luego localStorage
             async saveViaje(viaje) {
+                // Esperar a que Supabase esté listo
+                await waitForSupabase();
                 const sb = getSupabase();
+
+                // LOG: Verificar si Supabase está disponible
+                if (!sb) {
+                    console.warn('⚠️ saveViaje: Supabase NO disponible, guardando solo en localStorage');
+                } else {
+                    console.log('📤 saveViaje: Supabase disponible, guardando en la nube...');
+                }
 
                 // Preparar documento para guardar (sin base64 grandes)
                 const viajeParaGuardar = { ...viaje };
@@ -2532,11 +2541,15 @@
                 // Si hay Supabase, guardar ahí primero
                 if (sb) {
                     try {
-                        const { error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' });
-                        if (error) throw error;
-                        console.log('✅ Guardado en Supabase:', viajeParaGuardar.Nombre || viajeParaGuardar.tripId);
+                        console.log('📤 Enviando a Supabase:', { tripId: viajeParaGuardar.tripId, Nombre: viajeParaGuardar.Nombre });
+                        const { data, error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' }).select();
+                        if (error) {
+                            console.error('❌ Supabase error objeto:', error);
+                            throw error;
+                        }
+                        console.log('✅ Guardado en Supabase:', viajeParaGuardar.Nombre || viajeParaGuardar.tripId, 'Respuesta:', data);
                     } catch (err) {
-                        console.error('❌ Error guardando en Supabase:', err.message);
+                        console.error('❌ Error guardando en Supabase:', err.message, err);
                         // Continuar para guardar en localStorage como respaldo
                     }
                 }
