@@ -5510,11 +5510,11 @@
                         <KPICard label="Contenedores" value={formatNumber(stats.conts)} icon="Box" clickable onClick={() => openKpiModal('contenedores')} />
                         <KPICard label="Peso Total (t)" value={formatNumber(stats.peso)} icon="Scale" clickable onClick={() => openKpiModal('peso')} />
                         <KPICard label="Promedio Analisis" value={formatPercent(stats.promedioAnalisis)} icon="BarChart3" clickable onClick={() => openKpiModal('analisis')} />
-                        {canSeeFinancials && <KPICard label="Venta Total" value={formatCurrency(stats.venta)} icon="TrendingUp" clickable onClick={() => openKpiModal('venta')} />}
-                        {canSeeFinancials && <KPICard label="Saldo Pendiente" value={formatCurrency(stats.saldo)} icon="Clock" clickable onClick={() => openKpiModal('saldo')} />}
-                        {canSeeFinancials && <KPICard label="10% Cobrable" value={formatCurrency(stats.diezPorciento)} icon="Percent" clickable onClick={() => openKpiModal('diezPorciento')} />}
-                        {canSeeFinancials && <KPICard label="Anticipos Pendientes" value={formatCurrency(stats.anticiposPendientes)} icon="Wallet" color="var(--warning)" clickable onClick={() => openKpiModal('anticiposPendientes')} />}
-                        {canSeeFinancials && <KPICard label="Anticipos Pagados" value={formatCurrency(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />}
+                        {canSeeFinancials && <KPICard label="Venta Total (USD)" value={formatUSD(stats.venta)} icon="TrendingUp" clickable onClick={() => openKpiModal('venta')} />}
+                        {canSeeFinancials && <KPICard label="Saldo Pendiente (USD)" value={formatUSD(stats.saldo)} icon="Clock" clickable onClick={() => openKpiModal('saldo')} />}
+                        {canSeeFinancials && <KPICard label="10% Cobrable" value={formatUSD(stats.diezPorciento)} icon="Percent" clickable onClick={() => openKpiModal('diezPorciento')} />}
+                        {canSeeFinancials && <KPICard label="Anticipos Pendientes" value={formatUSD(stats.anticiposPendientes)} icon="Wallet" color="var(--warning)" clickable onClick={() => openKpiModal('anticiposPendientes')} />}
+                        {canSeeFinancials && <KPICard label="Anticipos Pagados" value={formatUSD(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />}
                     </div>
 
                     {data.length > 0 && (
@@ -5561,8 +5561,8 @@
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
-                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>}
-                                            {canSeeFinancials && <td style={{ fontWeight: 500, color: 'var(--warning)' }}>{r.Anticipos ? formatCurrency(r.Anticipos) : '-'}</td>}
+                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatUSD(r['$venta'])}</td>}
+                                            {canSeeFinancials && <td style={{ fontWeight: 500, color: 'var(--warning)' }}>{r.Anticipos ? formatUSD(r.Anticipos) : '-'}</td>}
                                             <td><button onClick={() => onEdit(r)} style={{ border: 'none', background: '#f1f5f9', padding: '0.375rem', borderRadius: '6px', cursor: 'pointer' }}><i data-lucide="Edit2" size="14" color="var(--primary)"></i></button></td>
                                         </tr>
                                     ))}
@@ -5917,16 +5917,16 @@
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
                                             <td>{r.Flete ? formatUSD(r.Flete) : '-'}</td>
-                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>}
-                                            {canSeeFinancials && <td style={{ color: Number(r['$deben']) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{formatCurrency(r['$deben'])}</td>}
-                                            {canSeeFinancials && <td>{r['10%'] ? formatCurrency(r['10%']) : '-'}</td>}
+                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatUSD(r['$venta'])}</td>}
+                                            {canSeeFinancials && <td style={{ color: Number(r['$deben']) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{formatUSD(r['$deben'])}</td>}
+                                            {canSeeFinancials && <td>{r['10%'] ? formatUSD(r['10%']) : '-'}</td>}
                                             {canSeeFinancials && <td style={{
                                                         color: r.Anticipos ? (r.anticipoPagado ? 'var(--success)' : 'var(--warning)') : 'var(--text-muted)',
                                                         fontWeight: r.Anticipos ? 600 : 400
                                                     }}>
                                                         {r.Anticipos ? (
                                                             <span title={r.anticipoPagado ? 'Pagado' : 'Pendiente'}>
-                                                                {r.anticipoPagado ? '✓ ' : ''}{formatCurrency(r.Anticipos)}
+                                                                {r.anticipoPagado ? '✓ ' : ''}{formatUSD(r.Anticipos)}
                                                             </span>
                                                         ) : '-'}
                                                     </td>}
