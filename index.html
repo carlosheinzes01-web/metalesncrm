@@ -3287,6 +3287,63 @@
         };
 
         // =====================================================
+        // PROFILE SERVICE - Gestión de perfiles de usuario
+        // =====================================================
+        const ProfileService = {
+            async getProfile(userId) {
+                const sb = getSupabase();
+                if (!sb) return null;
+                try {
+                    const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+                    if (error) throw error;
+                    return data;
+                } catch (e) {
+                    console.warn('Error obteniendo perfil:', e);
+                    return null;
+                }
+            },
+
+            async updateProfile(userId, updates) {
+                const sb = getSupabase();
+                if (!sb) return null;
+                try {
+                    const { data, error } = await sb.from('profiles').update(updates).eq('id', userId).select().single();
+                    if (error) throw error;
+                    return data;
+                } catch (e) {
+                    console.warn('Error actualizando perfil:', e);
+                    return null;
+                }
+            },
+
+            async getAllProfiles() {
+                const sb = getSupabase();
+                if (!sb) return [];
+                try {
+                    const { data, error } = await sb.from('profiles').select('*').order('created_at');
+                    if (error) throw error;
+                    return data || [];
+                } catch (e) {
+                    console.warn('Error obteniendo perfiles:', e);
+                    return [];
+                }
+            },
+
+            // Verificar si es admin completo
+            isAdmin(profile) {
+                return profile?.rol === 'admin';
+            },
+
+            // Verificar si puede ver datos financieros (Venta, Anticipos, 10%)
+            canSeeFinancials(profile) {
+                return profile?.rol === 'admin'; // Solo admins ven finanzas
+            }
+        };
+
+        // Campos financieros que editor_restringido NO puede ver
+        const CAMPOS_FINANCIEROS_RESTRINGIDOS = ['venta', 'anticipos', 'diezPorciento'];
+
+        // =====================================================
         // HELPERS
         // =====================================================
         const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val || 0);
@@ -4079,8 +4136,40 @@
                     <div className="sidebar-desktop-only sidebar-footer">
                         {user && (
                             <div className="sidebar-user-info">
-                                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Conectado como</div>
-                                <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                    <div style={{
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontWeight: 600,
+                                        fontSize: '0.875rem'
+                                    }}>
+                                        {(user.profile?.nombre || user.email || '?')[0].toUpperCase()}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {user.profile?.nombre || user.email?.split('@')[0] || 'Usuario'}
+                                        </div>
+                                        <div style={{ fontSize: '0.6875rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                padding: '0.125rem 0.375rem',
+                                                borderRadius: '4px',
+                                                fontSize: '0.625rem',
+                                                fontWeight: 600,
+                                                background: user.profile?.rol === 'admin' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                                                color: user.profile?.rol === 'admin' ? '#22c55e' : '#fbbf24'
+                                            }}>
+                                                {user.profile?.rol === 'admin' ? 'Admin' : 'Editor'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                         <div className="nav-item" onClick={onLogout} title="Cerrar sesión">
@@ -4920,12 +5009,15 @@
         // =====================================================
         // EDIT VIAJE MODAL
         // =====================================================
-        const EditViajeModal = ({ viaje, onClose, onSave, onDelete, isNew, originalViaje, initialTab = 'general' }) => {
+        const EditViajeModal = ({ viaje, onClose, onSave, onDelete, isNew, originalViaje, initialTab = 'general', user }) => {
             const [form, setForm] = useState({ ...viaje });
             const [activeTab, setActiveTab] = useState(initialTab);
             const [errors, setErrors] = useState({}); // Estado para errores de validación
             // Guardar valores originales para comparar (si viene de BL update)
             const original = originalViaje || viaje;
+
+            // Verificar si el usuario puede ver datos financieros
+            const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
             useEffect(() => { lucide.createIcons(); }, [activeTab]);
 
@@ -5054,7 +5146,7 @@
                             {[
                                 { id: 'general', label: 'General', icon: 'FileText' },
                                 { id: 'logistica', label: 'Logistica', icon: 'Ship' },
-                                { id: 'finanzas', label: 'Finanzas', icon: 'DollarSign' },
+                                ...(canSeeFinancials ? [{ id: 'finanzas', label: 'Finanzas', icon: 'DollarSign' }] : []),
                                 { id: 'documentos', label: 'Documentos', icon: 'Folder' },
                             ].map(tab => (
                                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
@@ -5191,7 +5283,7 @@
                                     </>
                                 )}
 
-                                {activeTab === 'finanzas' && (
+                                {activeTab === 'finanzas' && canSeeFinancials && (
                                     <>
                                         <div className="form-section">
                                             <div className="form-section-title"><i data-lucide="CreditCard" size="16"></i>Costos de Transporte</div>
@@ -5348,8 +5440,11 @@
         // =====================================================
         // PAGES
         // =====================================================
-        const DashboardPage = ({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary }) => {
+        const DashboardPage = ({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user }) => {
             const [kpiModal, setKpiModal] = useState(null);
+
+            // Verificar si el usuario puede ver datos financieros
+            const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
             // Stats filtrados por fecha (data) excepto saldo, 10% y anticipos que usan allData
             const stats = useMemo(() => {
@@ -5415,24 +5510,26 @@
                         <KPICard label="Contenedores" value={formatNumber(stats.conts)} icon="Box" clickable onClick={() => openKpiModal('contenedores')} />
                         <KPICard label="Peso Total (t)" value={formatNumber(stats.peso)} icon="Scale" clickable onClick={() => openKpiModal('peso')} />
                         <KPICard label="Promedio Analisis" value={formatPercent(stats.promedioAnalisis)} icon="BarChart3" clickable onClick={() => openKpiModal('analisis')} />
-                        <KPICard label="Venta Total" value={formatCurrency(stats.venta)} icon="TrendingUp" clickable onClick={() => openKpiModal('venta')} />
-                        <KPICard label="Saldo Pendiente" value={formatCurrency(stats.saldo)} icon="Clock" clickable onClick={() => openKpiModal('saldo')} />
-                        <KPICard label="10% Cobrable" value={formatCurrency(stats.diezPorciento)} icon="Percent" clickable onClick={() => openKpiModal('diezPorciento')} />
-                        <KPICard label="Anticipos Pendientes" value={formatCurrency(stats.anticiposPendientes)} icon="Wallet" color="var(--warning)" clickable onClick={() => openKpiModal('anticiposPendientes')} />
-                        <KPICard label="Anticipos Pagados" value={formatCurrency(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />
+                        {canSeeFinancials && <KPICard label="Venta Total" value={formatCurrency(stats.venta)} icon="TrendingUp" clickable onClick={() => openKpiModal('venta')} />}
+                        {canSeeFinancials && <KPICard label="Saldo Pendiente" value={formatCurrency(stats.saldo)} icon="Clock" clickable onClick={() => openKpiModal('saldo')} />}
+                        {canSeeFinancials && <KPICard label="10% Cobrable" value={formatCurrency(stats.diezPorciento)} icon="Percent" clickable onClick={() => openKpiModal('diezPorciento')} />}
+                        {canSeeFinancials && <KPICard label="Anticipos Pendientes" value={formatCurrency(stats.anticiposPendientes)} icon="Wallet" color="var(--warning)" clickable onClick={() => openKpiModal('anticiposPendientes')} />}
+                        {canSeeFinancials && <KPICard label="Anticipos Pagados" value={formatCurrency(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />}
                     </div>
 
                     {data.length > 0 && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                            <div className="table-card" style={{ padding: '1.5rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                    <span style={{ fontWeight: 600 }}>Ventas por Mes</span>
-                                    <span className="badge bg-purple">Ultimos 6 meses</span>
+                            {canSeeFinancials && (
+                                <div className="table-card" style={{ padding: '1.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <span style={{ fontWeight: 600 }}>Ventas por Mes</span>
+                                        <span className="badge bg-purple">Ultimos 6 meses</span>
+                                    </div>
+                                    <div style={{ height: '280px' }}>
+                                        <SalesChart data={data} />
+                                    </div>
                                 </div>
-                                <div style={{ height: '280px' }}>
-                                    <SalesChart data={data} />
-                                </div>
-                            </div>
+                            )}
                             <div className="table-card" style={{ padding: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <span style={{ fontWeight: 600 }}>Distribucion por Status</span>
@@ -5451,7 +5548,7 @@
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                             <table>
-                                <thead><tr><th>Nombre</th><th>Booking</th><th>Contenedores</th><th>Peso</th><th>Analisis</th><th>Venta Total</th><th>Anticipo</th><th></th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Booking</th><th>Contenedores</th><th>Peso</th><th>Analisis</th>{canSeeFinancials && <th>Venta Total</th>}{canSeeFinancials && <th>Anticipo</th>}<th></th></tr></thead>
                                 <tbody>
                                     {[...data].sort((a, b) => {
                                         const dateA = robustParseDate(a.Fecha)?.getTime() || 0;
@@ -5464,8 +5561,8 @@
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
-                                            <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>
-                                            <td style={{ fontWeight: 500, color: 'var(--warning)' }}>{r.Anticipos ? formatCurrency(r.Anticipos) : '-'}</td>
+                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>}
+                                            {canSeeFinancials && <td style={{ fontWeight: 500, color: 'var(--warning)' }}>{r.Anticipos ? formatCurrency(r.Anticipos) : '-'}</td>}
                                             <td><button onClick={() => onEdit(r)} style={{ border: 'none', background: '#f1f5f9', padding: '0.375rem', borderRadius: '6px', cursor: 'pointer' }}><i data-lucide="Edit2" size="14" color="var(--primary)"></i></button></td>
                                         </tr>
                                     ))}
@@ -5487,11 +5584,14 @@
             );
         };
 
-        const ViajesPage = ({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport }) => {
+        const ViajesPage = ({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user }) => {
             const [searchInput, setSearchInput] = useState(''); // Valor inmediato del input
             const [search, setSearch] = useState(''); // Valor con debounce para filtrar
             const [filterStatus, setFilterStatus] = useState('');
             const [sortConfig, setSortConfig] = useState({ key: 'Fecha', direction: 'desc' });
+
+            // Verificar si el usuario puede ver datos financieros
+            const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
             // Debounce: actualizar búsqueda 300ms después de dejar de escribir
             useEffect(() => {
@@ -5501,7 +5601,8 @@
                 return () => clearTimeout(timer);
             }, [searchInput]);
 
-            const columns = [
+            // Columnas base
+            const allColumns = [
                 { key: 'Fecha', label: 'Fecha', type: 'date' },
                 { key: 'Nombre', label: 'Nombre', type: 'string' },
                 { key: 'Numero de booking', label: 'Booking', type: 'string' },
@@ -5516,12 +5617,15 @@
                 { key: 'Fecha de embarque', label: 'Embarque', type: 'date' },
                 { key: 'Fecha de arribo', label: 'Arribo', type: 'date' },
                 { key: 'Flete', label: 'Flete USD', type: 'number' },
-                { key: '$venta', label: 'Venta', type: 'number' },
-                { key: '$deben', label: 'Saldo', type: 'number' },
-                { key: '10%', label: '10%', type: 'number' },
-                { key: 'Anticipos', label: 'Anticipos', type: 'number' },
+                { key: '$venta', label: 'Venta', type: 'number', financial: true },
+                { key: '$deben', label: 'Saldo', type: 'number', financial: true },
+                { key: '10%', label: '10%', type: 'number', financial: true },
+                { key: 'Anticipos', label: 'Anticipos', type: 'number', financial: true },
                 { key: 'Agencia aduanal', label: 'Agencia', type: 'string' },
             ];
+
+            // Filtrar columnas financieras si el usuario no tiene permiso
+            const columns = canSeeFinancials ? allColumns : allColumns.filter(col => !col.financial);
 
             const handleSort = (key) => {
                 setSortConfig(prev => ({
@@ -5813,10 +5917,10 @@
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
                                             <td>{r.Flete ? formatUSD(r.Flete) : '-'}</td>
-                                            <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>
-                                            <td style={{ color: Number(r['$deben']) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{formatCurrency(r['$deben'])}</td>
-                                            <td>{r['10%'] ? formatCurrency(r['10%']) : '-'}</td>
-                                            <td style={{
+                                            {canSeeFinancials && <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(r['$venta'])}</td>}
+                                            {canSeeFinancials && <td style={{ color: Number(r['$deben']) > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{formatCurrency(r['$deben'])}</td>}
+                                            {canSeeFinancials && <td>{r['10%'] ? formatCurrency(r['10%']) : '-'}</td>}
+                                            {canSeeFinancials && <td style={{
                                                         color: r.Anticipos ? (r.anticipoPagado ? 'var(--success)' : 'var(--warning)') : 'var(--text-muted)',
                                                         fontWeight: r.Anticipos ? 600 : 400
                                                     }}>
@@ -5825,7 +5929,7 @@
                                                                 {r.anticipoPagado ? '✓ ' : ''}{formatCurrency(r.Anticipos)}
                                                             </span>
                                                         ) : '-'}
-                                                    </td>
+                                                    </td>}
                                             <td style={{ whiteSpace: 'nowrap' }}>{r['Agencia aduanal'] || '-'}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.375rem' }}>
@@ -7030,36 +7134,72 @@
             );
         };
 
-        const AuthPage = ({ onSuccess, onSkip }) => {
+        const AuthPage = ({ onSuccess }) => {
             const [mode, setMode] = useState('login');
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState('');
+            const [success, setSuccess] = useState('');
 
-            useEffect(() => { lucide.createIcons(); }, []);
+            useEffect(() => { lucide.createIcons(); }, [mode]);
 
             const handleSubmit = async (e) => {
-                e.preventDefault(); setError(''); setLoading(true);
-                const result = mode === 'register' ? await SupabaseAuthService.signUp(email, password) : await SupabaseAuthService.signIn(email, password);
-                setLoading(false);
-                if (!result.success) setError(result.error);
-                else if (mode === 'login') onSuccess(result.data.user);
-                else setError(''); // Registration success
+                e.preventDefault();
+                setError('');
+                setSuccess('');
+                setLoading(true);
+
+                if (mode === 'register') {
+                    const result = await SupabaseAuthService.signUp(email, password);
+                    setLoading(false);
+                    if (!result.success) {
+                        setError(result.error);
+                    } else {
+                        setSuccess('Cuenta creada. Revisa tu email para confirmar, luego inicia sesion.');
+                        setMode('login');
+                    }
+                } else {
+                    const result = await SupabaseAuthService.signIn(email, password);
+                    setLoading(false);
+                    if (!result.success) {
+                        setError(result.error);
+                    } else {
+                        onSuccess(result.data.user);
+                    }
+                }
             };
 
             return (
                 <div className="auth-container">
                     <div className="auth-card">
-                        <div className="auth-header"><i data-lucide="Zap" size="40" color="var(--primary)" style={{ marginBottom: '1rem' }}></i><h1>Antigravity CRM</h1><p>{mode === 'login' ? 'Inicia sesion' : 'Registrate'}</p></div>
+                        <div className="auth-header">
+                            <i data-lucide="Zap" size="40" color="var(--primary)" style={{ marginBottom: '1rem' }}></i>
+                            <h1>Antigravity CRM</h1>
+                            <p>{mode === 'login' ? 'Inicia sesion' : 'Crear cuenta nueva'}</p>
+                        </div>
                         {error && <div className="auth-error">{error}</div>}
+                        {success && <div style={{ background: 'var(--success)', color: 'white', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.875rem' }}>{success}</div>}
                         <form className="auth-form" onSubmit={handleSubmit}>
-                            <div className="auth-input-group"><label>Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                            <div className="auth-input-group"><label>Contrasena</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} /></div>
-                            <button type="submit" className="auth-btn" disabled={loading}>{loading ? 'Cargando...' : (mode === 'login' ? 'Entrar' : 'Crear cuenta')}</button>
+                            <div className="auth-input-group">
+                                <label>Email</label>
+                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="tu@email.com" />
+                            </div>
+                            <div className="auth-input-group">
+                                <label>Contrasena</label>
+                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} placeholder="Minimo 6 caracteres" />
+                            </div>
+                            <button type="submit" className="auth-btn" disabled={loading}>
+                                {loading ? 'Cargando...' : (mode === 'login' ? 'Entrar' : 'Crear cuenta')}
+                            </button>
                         </form>
-                        <div className="auth-switch">{mode === 'login' ? <>No tienes cuenta? <a onClick={() => setMode('register')}>Registrate</a></> : <>Ya tienes cuenta? <a onClick={() => setMode('login')}>Entra</a></>}</div>
-                        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}><button onClick={onSkip} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8125rem' }}>Continuar sin cuenta</button></div>
+                        <div className="auth-switch">
+                            {mode === 'login' ? (
+                                <>No tienes cuenta? <a onClick={() => { setMode('register'); setError(''); setSuccess(''); }}>Registrate</a></>
+                            ) : (
+                                <>Ya tienes cuenta? <a onClick={() => { setMode('login'); setError(''); }}>Entra</a></>
+                            )}
+                        </div>
                     </div>
                 </div>
             );
@@ -7282,29 +7422,37 @@
                         // Esperar a que Supabase esté listo antes de cargar datos
                         const supabaseReady = await waitForSupabase();
                         if (supabaseReady) {
-                            console.log('✅ Supabase listo, cargando datos desde la nube...');
+                            console.log('✅ Supabase listo');
                             setSupabaseConnected(true);
+
+                            // Verificar si hay sesión activa
+                            const currentUser = await SupabaseAuthService.getCurrentUser();
+                            if (currentUser) {
+                                console.log('✅ Usuario autenticado:', currentUser.email);
+                                // Cargar perfil del usuario
+                                const profile = await ProfileService.getProfile(currentUser.id);
+                                setUser({ ...currentUser, profile });
+
+                                // Cargar datos y activar realtime
+                                await loadData();
+                                console.log('📡 Activando sincronización en tiempo real...');
+                                RealtimeService.subscribe((payload) => {
+                                    console.log('📡 Cambio de otro usuario detectado, recargando datos...');
+                                    loadData();
+                                });
+                                setAppState('app');
+                            } else {
+                                console.log('🔐 No hay sesión activa, mostrando login');
+                                setAppState('auth');
+                            }
                         } else {
-                            console.warn('⚠️ Cargando en modo offline (localStorage)');
+                            console.warn('⚠️ Supabase no disponible, mostrando login');
                             setSupabaseConnected(false);
-                        }
-
-                        // Cargar datos iniciales
-                        await loadData();
-
-                        // Conectar a Realtime para recibir cambios de otros usuarios
-                        if (supabaseReady) {
-                            console.log('📡 Activando sincronización en tiempo real...');
-                            RealtimeService.subscribe((payload) => {
-                                console.log('📡 Cambio de otro usuario detectado, recargando datos...');
-                                loadData();
-                            });
+                            setAppState('auth');
                         }
                     } catch (error) {
                         console.error('Error durante inicialización:', error);
-                    } finally {
-                        // Siempre pasar a la app, incluso si hay error
-                        setAppState('app');
+                        setAppState('auth');
                     }
                 };
 
@@ -7558,23 +7706,42 @@
                 </div>
             );
 
+            // Pantalla de autenticación
+            if (appState === 'auth') return (
+                <AuthPage
+                    onSuccess={async (userData) => {
+                        // Cargar perfil del usuario
+                        const profile = await ProfileService.getProfile(userData.id);
+                        setUser({ ...userData, profile });
+                        setSupabaseConnected(true);
+                        await loadData();
+                        // Activar realtime
+                        RealtimeService.subscribe((payload) => {
+                            console.log('📡 Cambio detectado, recargando datos...');
+                            loadData();
+                        });
+                        setAppState('app');
+                    }}
+                />
+            );
+
             const titles = { dashboard: 'Inicio', viajes: 'Viajes', status: 'Estatus', calendario: 'Calendario', gestion: 'Documentos', historial: 'Historial' };
 
             return (
                 <>
-                    <Sidebar activePage={page} setPage={setPage} user={user} onLogout={() => { AuthService.logout(); setUser(null); setData([]); setAppState('login'); }} isOnline={isSupabaseConfigured && user} />
+                    <Sidebar activePage={page} setPage={setPage} user={user} onLogout={async () => { await SupabaseAuthService.signOut(); setUser(null); setData([]); RealtimeService.unsubscribe(); setAppState('auth'); }} isOnline={supabaseConnected} />
                     <div className="main-container">
                         <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} lastAutoBackup={lastAutoBackup} supabaseConnected={supabaseConnected} />
                         <div className="content-scroll">
-                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} />}
-                            {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} />}
+                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} user={user} />}
+                            {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} user={user} />}
                             {page === 'status' && <StatusPage data={data} onEdit={openEdit} />}
                             {page === 'calendario' && <CalendarioPage data={data} onEdit={openEdit} />}
                             {page === 'gestion' && <GestionPage onOpenBookingModal={handleOpenBookingModal} onEditViaje={openEdit} onEditViajeWithOriginal={openEditWithOriginal} allData={data} />}
                             {page === 'historial' && <HistorialPage data={data} onEdit={openEdit} />}
                         </div>
                     </div>
-                    {editing && <EditViajeModal viaje={editing} onClose={() => { setEditing(null); setIsNew(false); setOriginalViaje(null); setInitialTab('general'); }} onSave={handleSave} onDelete={handleDelete} isNew={isNew} originalViaje={originalViaje} initialTab={initialTab} />}
+                    {editing && <EditViajeModal viaje={editing} onClose={() => { setEditing(null); setIsNew(false); setOriginalViaje(null); setInitialTab('general'); }} onSave={handleSave} onDelete={handleDelete} isNew={isNew} originalViaje={originalViaje} initialTab={initialTab} user={user} />}
                     {showImport && <ImportModal onClose={() => setShowImport(false)} onImport={handleImport} existingData={data} />}
                     {syncing && <SyncIndicator message={syncMsg} />}
                     {/* Botón flotante para agregar en móvil */}
