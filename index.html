@@ -4102,6 +4102,7 @@
                 { id: 'status', label: 'Estatus', icon: 'Activity' },
                 { id: 'calendario', label: 'Calendario', icon: 'Calendar' },
                 { id: 'gestion', label: 'Docs', icon: 'FileText' },
+                { id: 'historial', label: 'Historial', icon: 'History' },
             ];
             useEffect(() => { lucide.createIcons(); }, [activePage]);
 
@@ -4843,7 +4844,7 @@
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
             'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
             'Contenedores', 'Peso', 'Analisis', 'Flete',
-            '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
+            '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
 
@@ -4867,7 +4868,8 @@
             '10%': '10%',
             'Anticipos': 'Anticipos',
             'anticipoPagado': 'Anticipo Pagado',
-                        'Agencia aduanal': 'Agencia Aduanal',
+            'fechaAnticipoPagado': 'Fecha de Pago Anticipo',
+            'Agencia aduanal': 'Agencia Aduanal',
             'Origen': 'Origen',
             'Destino': 'Destino',
             'Cliente': 'Cliente',
@@ -5314,7 +5316,16 @@
                                                         <input
                                                             type="checkbox"
                                                             checked={form.anticipoPagado || false}
-                                                            onChange={e => set('anticipoPagado', e.target.checked)}
+                                                            onChange={e => {
+                                                                const checked = e.target.checked;
+                                                                set('anticipoPagado', checked);
+                                                                if (checked && !form.fechaAnticipoPagado) {
+                                                                    set('fechaAnticipoPagado', new Date().toISOString().split('T')[0]);
+                                                                }
+                                                                if (!checked) {
+                                                                    set('fechaAnticipoPagado', '');
+                                                                }
+                                                            }}
                                                             style={{ width: '18px', height: '18px', accentColor: 'var(--success)' }}
                                                         />
                                                         <span style={{
@@ -5324,6 +5335,17 @@
                                                             {form.anticipoPagado ? 'Anticipo Pagado' : 'Anticipo Pendiente'}
                                                         </span>
                                                     </label>
+                                                    {form.anticipoPagado && (
+                                                        <div style={{ marginTop: '0.5rem' }}>
+                                                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Fecha de pago</label>
+                                                            <input
+                                                                type="date"
+                                                                value={form.fechaAnticipoPagado || ''}
+                                                                onChange={e => set('fechaAnticipoPagado', e.target.value)}
+                                                                style={{ width: '100%', marginTop: '0.25rem' }}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -5449,10 +5471,20 @@
                 const anticiposTotal = allData.reduce((s, r) => s + (Number(r.Anticipos) || 0), 0);
                 // Anticipos Pendientes: Solo los que NO estan pagados
                 const anticiposPendientes = allData.filter(r => !r.anticipoPagado).reduce((s, r) => s + (Number(r.Anticipos) || 0), 0);
-                // Anticipos Pagados
-                const anticiposPagados = allData.filter(r => r.anticipoPagado).reduce((s, r) => s + (Number(r.Anticipos) || 0), 0);
+                // Anticipos Pagados del mes actual
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const anticiposPagados = allData.filter(r => {
+                    if (!r.anticipoPagado) return false;
+                    if (!r.fechaAnticipoPagado) return true; // Si no tiene fecha, mostrar igual (datos antiguos)
+                    const fechaPago = new Date(r.fechaAnticipoPagado);
+                    return fechaPago.getMonth() === currentMonth && fechaPago.getFullYear() === currentYear;
+                }).reduce((s, r) => s + (Number(r.Anticipos) || 0), 0);
                 // Saldo Pendiente = Anticipos NO PAGADOS + 10% Cobrable
                 const saldo = anticiposPendientes + diezPorciento;
+
+                const mesActual = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][now.getMonth()];
 
                 return {
                     viajes: data.length,
@@ -5466,22 +5498,35 @@
                     anticiposTotal,
                     anticiposPendientes,
                     anticiposPagados,
+                    mesActual,
                 };
             }, [data, allData]);
 
             // Filtros para cada KPI (saldo, 10% y anticipos usan allData)
-            const kpiFilters = useMemo(() => ({
-                viajes: { title: 'Todos los Viajes (en rango)', viajes: data },
-                contenedores: { title: 'Viajes con Contenedores', viajes: data.filter(v => Number(v.Contenedores) > 0) },
-                peso: { title: 'Viajes con Peso Registrado', viajes: data.filter(v => Number(v.Peso) > 0) },
-                analisis: { title: 'Viajes con Análisis', viajes: data.filter(v => Number(v.Analisis) > 0) },
-                venta: { title: 'Viajes con Venta', viajes: data.filter(v => Number(v['$venta']) > 0) },
-                // Estos muestran TODOS los viajes (sin filtro de fecha)
-                saldo: { title: 'Saldo Pendiente (Anticipos Pendientes + 10%)', viajes: allData.filter(v => (!v.anticipoPagado && Number(v.Anticipos) > 0) || (v.Status === 'Pago 10%' && Number(v['10%']) > 0)) },
-                diezPorciento: { title: 'Viajes con Status Pago 10%', viajes: allData.filter(v => v.Status === 'Pago 10%') },
-                anticiposPendientes: { title: 'Anticipos Pendientes', viajes: allData.filter(v => Number(v.Anticipos) > 0 && !v.anticipoPagado) },
-                anticiposPagados: { title: 'Anticipos Pagados', viajes: allData.filter(v => Number(v.Anticipos) > 0 && v.anticipoPagado) },
-            }), [data, allData]);
+            const kpiFilters = useMemo(() => {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+                const mesActual = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][currentMonth];
+
+                return {
+                    viajes: { title: 'Todos los Viajes (en rango)', viajes: data },
+                    contenedores: { title: 'Viajes con Contenedores', viajes: data.filter(v => Number(v.Contenedores) > 0) },
+                    peso: { title: 'Viajes con Peso Registrado', viajes: data.filter(v => Number(v.Peso) > 0) },
+                    analisis: { title: 'Viajes con Análisis', viajes: data.filter(v => Number(v.Analisis) > 0) },
+                    venta: { title: 'Viajes con Venta', viajes: data.filter(v => Number(v['$venta']) > 0) },
+                    // Estos muestran TODOS los viajes (sin filtro de fecha)
+                    saldo: { title: 'Saldo Pendiente (Anticipos Pendientes + 10%)', viajes: allData.filter(v => (!v.anticipoPagado && Number(v.Anticipos) > 0) || (v.Status === 'Pago 10%' && Number(v['10%']) > 0)) },
+                    diezPorciento: { title: 'Viajes con Status Pago 10%', viajes: allData.filter(v => v.Status === 'Pago 10%') },
+                    anticiposPendientes: { title: 'Anticipos Pendientes', viajes: allData.filter(v => Number(v.Anticipos) > 0 && !v.anticipoPagado) },
+                    anticiposPagados: { title: `Anticipos Pagados (${mesActual})`, viajes: allData.filter(v => {
+                        if (Number(v.Anticipos) <= 0 || !v.anticipoPagado) return false;
+                        if (!v.fechaAnticipoPagado) return true;
+                        const fechaPago = new Date(v.fechaAnticipoPagado);
+                        return fechaPago.getMonth() === currentMonth && fechaPago.getFullYear() === currentYear;
+                    }) },
+                };
+            }, [data, allData]);
 
             useEffect(() => { lucide.createIcons(); }, [data, kpiModal]);
 
@@ -5508,7 +5553,7 @@
                         {canSeeFinancials && <KPICard label="Saldo Pendiente (USD)" value={formatUSD(stats.saldo)} icon="Clock" clickable onClick={() => openKpiModal('saldo')} />}
                         {canSeeFinancials && <KPICard label="10% Cobrable" value={formatUSD(stats.diezPorciento)} icon="Percent" clickable onClick={() => openKpiModal('diezPorciento')} />}
                         {canSeeFinancials && <KPICard label="Anticipos Pendientes" value={formatUSD(stats.anticiposPendientes)} icon="Wallet" color="var(--warning)" clickable onClick={() => openKpiModal('anticiposPendientes')} />}
-                        {canSeeFinancials && <KPICard label="Anticipos Pagados" value={formatUSD(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />}
+                        {canSeeFinancials && <KPICard label={`Anticipos Pagados (${stats.mesActual})`} value={formatUSD(stats.anticiposPagados)} icon="CircleCheck" color="var(--success)" clickable onClick={() => openKpiModal('anticiposPagados')} />}
                     </div>
 
                     {data.length > 0 && (
