@@ -3656,7 +3656,7 @@
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
             'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
-            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Costo agencia',
+            'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
@@ -4842,7 +4842,7 @@
         const TRACKED_FIELDS = [
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
             'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
-            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Costo agencia',
+            'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
@@ -4867,8 +4867,7 @@
             '10%': '10%',
             'Anticipos': 'Anticipos',
             'anticipoPagado': 'Anticipo Pagado',
-            'Costo agencia': 'Costo Agencia',
-            'Agencia aduanal': 'Agencia Aduanal',
+                        'Agencia aduanal': 'Agencia Aduanal',
             'Origen': 'Origen',
             'Destino': 'Destino',
             'Cliente': 'Cliente',
@@ -4886,7 +4885,6 @@
             'Peso',          // Decimal (toneladas)
             'Analisis',      // Decimal (porcentaje)
             'Flete',         // Decimal (dinero)
-            'Costo agencia', // Decimal (dinero)
             '$venta',        // Decimal (dinero)
             '$deben',        // Decimal (dinero)
             '10%',           // Decimal (dinero)
@@ -5051,7 +5049,7 @@
                 const fieldsToCompare = [
                     'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
                     'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
-                    'Contenedores', 'Peso', 'Analisis', 'Flete', 'Costo agencia',
+                    'Contenedores', 'Peso', 'Analisis', 'Flete',
                     '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
                     'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
                 ];
@@ -5291,8 +5289,8 @@
                                                 <FieldWithChange label="Flete (USD)" field="Flete" {...fieldProps}>
                                                     <input type="text" inputMode="decimal" value={form.Flete || ''} onChange={e => set('Flete', e.target.value)} placeholder="Ej: 5000" />
                                                 </FieldWithChange>
-                                                <FieldWithChange label="Costo Agencia (MXN)" field="Costo agencia" {...fieldProps}>
-                                                    <input type="text" inputMode="decimal" value={form['Costo agencia'] || ''} onChange={e => set('Costo agencia', e.target.value)} placeholder="Ej: 15000" />
+                                                <FieldWithChange label="Agencia Aduanal (MXN)" field="Agencia aduanal" {...fieldProps}>
+                                                    <input type="text" inputMode="decimal" value={form['Agencia aduanal'] || ''} onChange={e => set('Agencia aduanal', e.target.value)} placeholder="Ej: 50000" />
                                                 </FieldWithChange>
                                             </div>
                                         </div>
@@ -5326,10 +5324,6 @@
                                                             {form.anticipoPagado ? 'Anticipo Pagado' : 'Anticipo Pendiente'}
                                                         </span>
                                                     </label>
-                                                </div>
-                                                <div className="form-group">
-                                                    <label>Agencia Aduanal</label>
-                                                    <input type="text" value={form['Agencia aduanal'] || ''} onChange={e => set('Agencia aduanal', e.target.value)} />
                                                 </div>
                                             </div>
                                         </div>
