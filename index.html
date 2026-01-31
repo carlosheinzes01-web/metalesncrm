@@ -5621,7 +5621,7 @@
                 { key: '$deben', label: 'Saldo', type: 'number', financial: true },
                 { key: '10%', label: '10%', type: 'number', financial: true },
                 { key: 'Anticipos', label: 'Anticipos', type: 'number', financial: true },
-                { key: 'Agencia aduanal', label: 'Agencia', type: 'string' },
+                { key: 'Agencia aduanal', label: 'Agencia (MXN)', type: 'number' },
             ];
 
             // Filtrar columnas financieras si el usuario no tiene permiso
@@ -5930,7 +5930,7 @@
                                                             </span>
                                                         ) : '-'}
                                                     </td>}
-                                            <td style={{ whiteSpace: 'nowrap' }}>{r['Agencia aduanal'] || '-'}</td>
+                                            <td style={{ whiteSpace: 'nowrap' }}>{r['Agencia aduanal'] ? formatCurrency(r['Agencia aduanal']) : '-'}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: '0.375rem' }}>
                                                     <button onClick={() => onEdit(r)} style={{ border: 'none', background: '#f1f5f9', padding: '0.375rem', borderRadius: '6px', cursor: 'pointer' }}><i data-lucide="Edit2" size="14" color="var(--primary)"></i></button>
