@@ -7267,9 +7267,8 @@
                                 const profile = await ProfileService.getProfile(currentUser.id);
                                 setUser({ ...currentUser, profile });
 
-                                // Cargar datos y activar realtime
+                                // Cargar datos
                                 await loadData();
-                                RealtimeService.subscribe(() => loadData());
                                 setAppState('app');
                             } else {
                                 setAppState('auth');
@@ -7286,11 +7285,6 @@
                 };
 
                 init();
-
-                // Cleanup: desconectar Realtime
-                return () => {
-                    RealtimeService.unsubscribe();
-                };
             }, []);
 
             const loadData = async () => {
@@ -7549,8 +7543,6 @@
                         setUser({ ...userData, profile });
                         setSupabaseConnected(true);
                         await loadData();
-                        // Activar realtime
-                        RealtimeService.subscribe(() => loadData());
                         setAppState('app');
                     }}
                 />
@@ -7560,7 +7552,7 @@
 
             return (
                 <>
-                    <Sidebar activePage={page} setPage={setPage} user={user} onLogout={async () => { await SupabaseAuthService.signOut(); setUser(null); setData([]); RealtimeService.unsubscribe(); setAppState('auth'); }} isOnline={supabaseConnected} />
+                    <Sidebar activePage={page} setPage={setPage} user={user} onLogout={async () => { await SupabaseAuthService.signOut(); setUser(null); setData([]); setAppState('auth'); }} isOnline={supabaseConnected} />
                     <div className="main-container">
                         <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} lastAutoBackup={lastAutoBackup} supabaseConnected={supabaseConnected} />
                         <div className="content-scroll">
