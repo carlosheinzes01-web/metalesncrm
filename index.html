@@ -2844,6 +2844,81 @@
                     console.error('❌ Error en migración:', err.message);
                     return { success: false, error: err.message };
                 }
+            },
+
+            // Contar documentos que necesitan migración (base64 → Storage)
+            async countDocsToMigrate() {
+                const viajes = await this.getViajes();
+                let count = 0;
+                viajes.forEach(v => {
+                    if (!v.documentos) return;
+                    Object.values(v.documentos).forEach(doc => {
+                        if (doc.base64 && !doc.storageUrl) count++;
+                    });
+                });
+                return count;
+            },
+
+            // Migrar documentos base64 a Supabase Storage
+            async migrateBase64ToStorage(onProgress) {
+                const viajes = await this.getViajes();
+                const toMigrate = [];
+
+                // Encontrar docs a migrar
+                viajes.forEach(v => {
+                    if (!v.documentos) return;
+                    Object.entries(v.documentos).forEach(([docType, doc]) => {
+                        if (doc.base64 && !doc.storageUrl) {
+                            toMigrate.push({ viaje: v, docType, doc });
+                        }
+                    });
+                });
+
+                if (toMigrate.length === 0) {
+                    return { success: true, count: 0, message: 'No hay documentos para migrar' };
+                }
+
+                let migrated = 0;
+                const errors = [];
+
+                for (const { viaje, docType, doc } of toMigrate) {
+                    try {
+                        // Convertir base64 a blob
+                        const blob = base64ToBlob(doc.base64);
+                        if (!blob) throw new Error('No se pudo convertir base64');
+
+                        // Subir a Storage
+                        const path = `documentos/${viaje.tripId}/${docType}_${Date.now()}.pdf`;
+                        const result = await StorageService.upload(path, blob, doc.fileName || `${docType}.pdf`);
+
+                        if (!result.success) throw new Error(result.error);
+
+                        // Actualizar documento (quitar base64, agregar URL)
+                        viaje.documentos[docType] = {
+                            uploaded: true,
+                            fileName: doc.fileName || `${docType}.pdf`,
+                            uploadDate: doc.uploadDate || new Date().toISOString(),
+                            storagePath: path,
+                            storageUrl: result.url
+                            // No incluir base64
+                        };
+
+                        // Guardar viaje actualizado
+                        await this.saveViaje(viaje);
+                        migrated++;
+                        onProgress?.(migrated, toMigrate.length);
+                    } catch (err) {
+                        console.error(`Error migrando ${docType} de ${viaje.Nombre}:`, err);
+                        errors.push(`${viaje.Nombre} - ${docType}: ${err.message}`);
+                    }
+                }
+
+                return {
+                    success: errors.length === 0,
+                    count: migrated,
+                    total: toMigrate.length,
+                    errors
+                };
             }
         };
 
@@ -3124,6 +3199,24 @@
 
         // Funciones para manejo de PDFs (compatibles con Storage y Base64)
         const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB con Supabase Storage
+
+        // Convertir base64 a Blob (para migración de docs antiguos)
+        const base64ToBlob = (base64) => {
+            try {
+                const parts = base64.split(',');
+                const byteString = atob(parts[1] || parts[0]);
+                const mimeType = parts[0]?.match(/:(.*?);/)?.[1] || 'application/pdf';
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                return new Blob([ab], { type: mimeType });
+            } catch (err) {
+                console.error('Error convirtiendo base64 a blob:', err);
+                return null;
+            }
+        };
 
         // Extraer solo la primera página de un PDF usando pdf-lib
         const extractFirstPage = async (file) => {
@@ -7126,6 +7219,10 @@
             const [isNew, setIsNew] = useState(false);
             const [showImport, setShowImport] = useState(false);
             const [theme, setTheme] = useState(() => localStorage.getItem('antigravity_theme') || 'light');
+            // Estado para migración de datos a Supabase
+            const [migrating, setMigrating] = useState(false);
+            // Referencia para evitar migraciones concurrentes de PDFs
+            const migratingRef = useRef(false);
             // Inicializar con el mes en curso
             const [startDate, setStartDate] = useState(() => {
                 const now = new Date();
@@ -7201,6 +7298,22 @@
                 const d = await DatabaseService.getViajes();
                 const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
                 setData(viajes);
+                // Migración automática de PDFs base64 a Storage (silenciosa, una sola vez)
+                if (!migratingRef.current) {
+                    const pendingDocs = await DatabaseService.countDocsToMigrate();
+                    if (pendingDocs > 0) {
+                        migratingRef.current = true;
+                        DatabaseService.migrateBase64ToStorage().then(result => {
+                            migratingRef.current = false;
+                            if (result.success) {
+                                loadData(); // Recargar datos después de migrar
+                            }
+                        }).catch(err => {
+                            migratingRef.current = false;
+                            console.error('Error en migración automática de PDFs:', err);
+                        });
+                    }
+                }
             };
 
             // Polling de respaldo: sincronizar periódicamente por si Realtime falla
@@ -7239,6 +7352,7 @@
                 }
                 setMigrating(false);
             };
+
 
             const handleSave = async (viaje) => {
                 setSyncing(true); setSyncMsg('Guardando...');
