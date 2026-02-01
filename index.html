@@ -7174,19 +7174,10 @@
                     }
                 };
 
-                // Timeout de seguridad: si después de 10s sigue cargando, mostrar la app
-                const timeout = setTimeout(() => {
-                    if (appState === 'loading') {
-                        console.warn('⚠️ Timeout de carga - mostrando app');
-                        setAppState('app');
-                    }
-                }, 10000);
-
                 init();
 
-                // Cleanup: desconectar Realtime y limpiar timeout
+                // Cleanup: desconectar Realtime
                 return () => {
-                    clearTimeout(timeout);
                     RealtimeService.unsubscribe();
                 };
             }, []);
