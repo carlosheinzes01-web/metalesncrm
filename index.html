@@ -5626,7 +5626,8 @@
         const ViajesPage = ({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user }) => {
             const [searchInput, setSearchInput] = useState(''); // Valor inmediato del input
             const [search, setSearch] = useState(''); // Valor con debounce para filtrar
-            const [filterStatus, setFilterStatus] = useState('');
+            const [filterStatus, setFilterStatus] = useState([]); // Array para multi-select
+            const [showStatusDropdown, setShowStatusDropdown] = useState(false);
             const [sortConfig, setSortConfig] = useState({ key: 'Fecha', direction: 'desc' });
 
             // Verificar si el usuario puede ver datos financieros
@@ -5639,6 +5640,18 @@
                 }, 300);
                 return () => clearTimeout(timer);
             }, [searchInput]);
+
+            // Cerrar dropdown de status al hacer click fuera
+            useEffect(() => {
+                if (!showStatusDropdown) return;
+                const handleClickOutside = (e) => {
+                    if (!e.target.closest('.viajes-status-filter')) {
+                        setShowStatusDropdown(false);
+                    }
+                };
+                document.addEventListener('click', handleClickOutside);
+                return () => document.removeEventListener('click', handleClickOutside);
+            }, [showStatusDropdown]);
 
             // Columnas base
             const allColumns = [
@@ -5676,7 +5689,7 @@
             const sorted = useMemo(() => {
                 const filtered = data.filter(v => {
                     const matchSearch = !search || (v.Nombre || '').toLowerCase().includes(search.toLowerCase()) || (v['Numero de booking'] || '').toLowerCase().includes(search.toLowerCase()) || (v['Numero de BL'] || '').toLowerCase().includes(search.toLowerCase());
-                    const matchStatus = !filterStatus || v.Status === filterStatus;
+                    const matchStatus = filterStatus.length === 0 || filterStatus.includes(v.Status);
                     return matchSearch && matchStatus;
                 });
 
@@ -5703,7 +5716,7 @@
             }, [data, search, filterStatus, sortConfig]);
 
             const statuses = useMemo(() => [...new Set(data.map(v => v.Status).filter(Boolean))], [data]);
-            useEffect(() => { lucide.createIcons(); }, [sorted, sortConfig]);
+            useEffect(() => { lucide.createIcons(); }, [sorted, sortConfig, showStatusDropdown, filterStatus]);
 
             const SortHeader = ({ col }) => (
                 <th onClick={() => handleSort(col.key)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
@@ -5753,26 +5766,115 @@
                             )}
                         </div>
 
-                        {/* Filtro de status - chips en móvil */}
-                        <div className="viajes-status-filter">
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
+                        {/* Filtro de status - multi-select con dropdown */}
+                        <div className="viajes-status-filter" style={{ position: 'relative' }}>
+                            <button
+                                type="button"
                                 className="viajes-status-select"
+                                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    minWidth: '140px',
+                                    cursor: 'pointer'
+                                }}
                             >
-                                <option value="">Todos</option>
-                                {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                                <span>{filterStatus.length === 0 ? 'Todos' : `${filterStatus.length} seleccionado${filterStatus.length > 1 ? 's' : ''}`}</span>
+                                <i data-lucide={showStatusDropdown ? 'ChevronUp' : 'ChevronDown'} size="16"></i>
+                            </button>
+
+                            {showStatusDropdown && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    marginTop: '4px',
+                                    background: 'var(--card-bg)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                    zIndex: 100,
+                                    maxHeight: '250px',
+                                    overflowY: 'auto'
+                                }}>
+                                    {/* Opción "Todos" para limpiar */}
+                                    <div
+                                        style={{
+                                            padding: '0.5rem 0.75rem',
+                                            cursor: 'pointer',
+                                            borderBottom: '1px solid var(--border-color)',
+                                            background: filterStatus.length === 0 ? 'var(--primary-bg)' : 'transparent',
+                                            fontWeight: filterStatus.length === 0 ? 600 : 400
+                                        }}
+                                        onClick={() => {
+                                            setFilterStatus([]);
+                                            setShowStatusDropdown(false);
+                                        }}
+                                    >
+                                        Todos
+                                    </div>
+
+                                    {/* Lista de status con checkboxes */}
+                                    {statuses.map(s => (
+                                        <label
+                                            key={s}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem',
+                                                padding: '0.5rem 0.75rem',
+                                                cursor: 'pointer',
+                                                background: filterStatus.includes(s) ? 'var(--primary-bg)' : 'transparent'
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={filterStatus.includes(s)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setFilterStatus([...filterStatus, s]);
+                                                    } else {
+                                                        setFilterStatus(filterStatus.filter(x => x !== s));
+                                                    }
+                                                }}
+                                                style={{ accentColor: 'var(--primary)' }}
+                                            />
+                                            <span>{s}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Contador móvil */}
+                    {/* Contador móvil y badges de filtros activos */}
                     <div className="viajes-mobile-count">
                         <span>{sorted.length} viaje{sorted.length !== 1 ? 's' : ''}</span>
-                        {filterStatus && (
-                            <span className="viajes-filter-badge" onClick={() => setFilterStatus('')}>
-                                {filterStatus} <i data-lucide="X" size="12"></i>
-                            </span>
+                        {filterStatus.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                                {filterStatus.map(s => (
+                                    <span
+                                        key={s}
+                                        className="viajes-filter-badge"
+                                        onClick={() => setFilterStatus(filterStatus.filter(x => x !== s))}
+                                    >
+                                        {s} <i data-lucide="X" size="12"></i>
+                                    </span>
+                                ))}
+                                {filterStatus.length > 1 && (
+                                    <span
+                                        className="viajes-filter-badge"
+                                        style={{ background: 'var(--text-muted)', cursor: 'pointer' }}
+                                        onClick={() => setFilterStatus([])}
+                                    >
+                                        Limpiar <i data-lucide="X" size="12"></i>
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
 
