@@ -3169,87 +3169,6 @@
         };
 
         // =====================================================
-        // REALTIME SERVICE - Actualizaciones en tiempo real
-        // =====================================================
-        const RealtimeService = {
-            subscription: null,
-            reconnectAttempts: 0,
-            maxReconnectAttempts: 5,
-            onDataChangeCallback: null,
-
-            // Iniciar escucha de cambios en tiempo real
-            subscribe(onDataChange) {
-                const sb = getSupabase();
-
-                if (!sb) {
-                    console.log('⚠️ Realtime no disponible (Supabase no conectado)');
-                    return false;
-                }
-
-                // Guardar callback para reconexiones
-                this.onDataChangeCallback = onDataChange;
-
-                // Limpiar suscripción anterior si existe
-                this.unsubscribe();
-
-                console.log('🔴 Conectando a Realtime...');
-
-                this.subscription = sb
-                    .channel('viajes-realtime-' + Date.now())
-                    .on('postgres_changes',
-                        { event: '*', schema: 'public', table: 'viajes' },
-                        (payload) => {
-                            console.log('📡 Cambio detectado:', payload.eventType, payload.new?.Nombre || payload.old?.tripId);
-                            if (onDataChange) {
-                                onDataChange(payload);
-                            }
-                        }
-                    )
-                    .subscribe((status) => {
-                        if (status === 'SUBSCRIBED') {
-                            console.log('✅ Realtime conectado - Cambios en tiempo real activos');
-                            this.reconnectAttempts = 0;
-                        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                            console.error('❌ Error Realtime:', status);
-                            this.handleReconnect();
-                        } else if (status === 'CLOSED') {
-                            console.log('🔴 Realtime cerrado');
-                        }
-                    });
-
-                return true;
-            },
-
-            // Manejar reconexión con backoff exponencial
-            handleReconnect() {
-                if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                    this.reconnectAttempts++;
-                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-                    console.log(`🔄 Reintentando Realtime en ${delay/1000}s (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-                    setTimeout(() => {
-                        if (this.onDataChangeCallback) {
-                            this.subscribe(this.onDataChangeCallback);
-                        }
-                    }, delay);
-                } else {
-                    console.warn('⚠️ Máximo de reintentos Realtime alcanzado. Usando polling como respaldo.');
-                }
-            },
-
-            // Detener escucha
-            unsubscribe() {
-                const sb = getSupabase();
-                if (this.subscription && sb) {
-                    try {
-                        sb.removeChannel(this.subscription);
-                    } catch (e) {
-                        console.warn('Error al desconectar Realtime:', e);
-                    }
-                    this.subscription = null;
-                }
-            }
-        };
-
         // =====================================================
         // SUPABASE AUTH SERVICE (no usado actualmente)
         // =====================================================
@@ -3283,12 +3202,6 @@
                 if (!sb) return { success: true };
                 await sb.auth.signOut();
                 return { success: true };
-            },
-            onAuthStateChange(callback) {
-                const sb = getSupabase();
-                if (!sb) return () => {};
-                const { data: { subscription } } = sb.auth.onAuthStateChange(callback);
-                return () => subscription.unsubscribe();
             }
         };
 
@@ -3309,45 +3222,11 @@
                 }
             },
 
-            async updateProfile(userId, updates) {
-                const sb = getSupabase();
-                if (!sb) return null;
-                try {
-                    const { data, error } = await sb.from('profiles').update(updates).eq('id', userId).select().single();
-                    if (error) throw error;
-                    return data;
-                } catch (e) {
-                    console.warn('Error actualizando perfil:', e);
-                    return null;
-                }
-            },
-
-            async getAllProfiles() {
-                const sb = getSupabase();
-                if (!sb) return [];
-                try {
-                    const { data, error } = await sb.from('profiles').select('*').order('created_at');
-                    if (error) throw error;
-                    return data || [];
-                } catch (e) {
-                    console.warn('Error obteniendo perfiles:', e);
-                    return [];
-                }
-            },
-
-            // Verificar si es admin completo
-            isAdmin(profile) {
-                return profile?.rol === 'admin';
-            },
-
             // Verificar si puede ver datos financieros (Venta, Anticipos, 10%)
             canSeeFinancials(profile) {
                 return profile?.rol === 'admin'; // Solo admins ven finanzas
             }
         };
-
-        // Campos financieros que editor_restringido NO puede ver
-        const CAMPOS_FINANCIEROS_RESTRINGIDOS = ['venta', 'anticipos', 'diezPorciento'];
 
         // =====================================================
         // HELPERS
@@ -3987,18 +3866,6 @@
         window.addEventListener('unhandledrejection', function (event) {
             console.error('Unhandled Promise Rejection:', event.reason);
         });
-
-        // Componente para mostrar evidencia de extraccion
-        const EvidenceIcon = ({ field, trip, evidence }) => {
-            const ev = evidence || (trip?.evidence && trip?.evidence[field]);
-            if (!ev) return null;
-            const title = `Fuente: ${ev.rule}\n"${ev.snippet}"`;
-            return (
-                <span title={title} style={{ marginLeft: '4px', cursor: 'help', color: '#64748b', display: 'inline-block' }}>
-                    <i data-lucide="info" style={{ width: '14px', height: '14px', verticalAlign: 'middle' }}></i>
-                </span>
-            );
-        };
 
         const GlobalSearch = ({ data, onSelect }) => {
             const [query, setQuery] = useState('');
@@ -7247,35 +7114,6 @@
                                 </div>
                             )}
                         </div>
-                    )}
-                </div>
-            );
-        };
-
-        const AlertasPage = ({ notifications, onClick }) => {
-            useEffect(() => { lucide.createIcons(); }, [notifications]);
-            const grouped = useMemo(() => { const g = { danger: [], warning: [], info: [] }; notifications.forEach(n => g[n.type]?.push(n)); return g; }, [notifications]);
-            const getIcon = (t) => t === 'danger' ? 'AlertTriangle' : t === 'warning' ? 'Clock' : 'Ship';
-
-            return (
-                <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Centro de Alertas</h2>
-                    {notifications.length === 0 ? (
-                        <div className="table-card" style={{ padding: '4rem', textAlign: 'center' }}><i data-lucide="CheckCircle" size="60" color="#22c55e"></i><h3 style={{ marginTop: '1.5rem' }}>Todo en orden</h3><p style={{ color: 'var(--text-muted)' }}>No hay alertas</p></div>
-                    ) : (
-                        ['danger', 'warning', 'info'].map(type => grouped[type].length > 0 && (
-                            <div key={type} style={{ marginBottom: '2rem' }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem', color: type === 'danger' ? '#dc2626' : type === 'warning' ? '#f59e0b' : '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><i data-lucide={getIcon(type)} size="18"></i>{type === 'danger' ? 'Urgente' : type === 'warning' ? 'Atencion' : 'Info'} ({grouped[type].length})</h3>
-                                <div className="table-card">
-                                    {grouped[type].map((n, i) => (
-                                        <div key={n.id || i} className="notification-item" onClick={() => onClick(n.viaje)}>
-                                            <div className={`notification-icon ${n.type}`}><i data-lucide={getIcon(n.type)} size="18"></i></div>
-                                            <div className="notification-content"><div className="notification-title">{n.title}</div><div className="notification-message">{n.message}</div></div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))
                     )}
                 </div>
             );
