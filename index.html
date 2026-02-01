@@ -1653,11 +1653,25 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0ZWN6dmZqbmtoaXBidmJ3bG14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwODk1NDQsImV4cCI6MjA4NDY2NTU0NH0.sWGm3uRwQv3eioPZFPtkb2GaTvHoRBsZFx44OYzIIrY';
         const isSupabaseConfigured = SUPABASE_URL !== 'TU_SUPABASE_URL_AQUI' && SUPABASE_ANON_KEY !== 'TU_SUPABASE_ANON_KEY_AQUI';
 
+        // =====================================================
+        // CONSTANTES DE APLICACIÓN
+        // =====================================================
+        const CONFIG = {
+            DELAYS: {
+                SEARCH_DEBOUNCE: 300,      // ms - debounce en búsqueda
+                ICON_INIT: 50,             // ms - inicialización de iconos Lucide
+                SUPABASE_WAIT: 5000,       // ms - espera máxima para Supabase
+                SYNC_INTERVAL: 30000,      // ms - intervalo de polling (30s)
+                CHECK_INTERVAL: 100        // ms - intervalo de verificación Supabase
+            },
+            MESES: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        };
+
         // Cliente de Supabase - se inicializa bajo demanda
         let _supabaseClient = null;
 
-        // Esperar a que la librería Supabase esté disponible (máximo 5 segundos)
-        const waitForSupabase = (maxWait = 5000) => {
+        // Esperar a que la librería Supabase esté disponible
+        const waitForSupabase = (maxWait = CONFIG.DELAYS.SUPABASE_WAIT) => {
             return new Promise((resolve) => {
                 // Si ya está disponible, resolver inmediatamente
                 if (window.supabase) {
@@ -1681,7 +1695,7 @@
                         console.warn('⚠️ Timeout esperando librería Supabase (modo offline)');
                         resolve(false);
                     }
-                }, 100);
+                }, CONFIG.DELAYS.CHECK_INTERVAL);
             });
         };
 
@@ -3004,7 +3018,7 @@
         const formatNumber = (val) => new Intl.NumberFormat('es-MX').format(val || 0);
         const formatUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
         const formatPercent = (val) => ((Number(val) || 0) * 100).toFixed(2) + '%';
-        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const MESES = CONFIG.MESES;
 
         // =====================================================
         // DOCUMENT TYPES - Checklist de documentos por viaje
@@ -4335,7 +4349,7 @@
                     if (cardRef.current) {
                         lucide.createIcons({ nodes: [cardRef.current] });
                     }
-                }, 50);
+                }, CONFIG.DELAYS.ICON_INIT);
                 return () => clearTimeout(timer);
             }, [localDoc.uploaded]);
 
@@ -5094,9 +5108,9 @@
         };
 
         // =====================================================
-        // PAGES
+        // PAGES (con React.memo para optimizar re-renders)
         // =====================================================
-        const DashboardPage = ({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user }) => {
+        const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user }) => {
             const [kpiModal, setKpiModal] = useState(null);
 
             // Verificar si el usuario puede ver datos financieros
@@ -5261,9 +5275,9 @@
                     )}
                 </div>
             );
-        };
+        });
 
-        const ViajesPage = ({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user }) => {
+        const ViajesPage = React.memo(({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user }) => {
             const [searchInput, setSearchInput] = useState(''); // Valor inmediato del input
             const [search, setSearch] = useState(''); // Valor con debounce para filtrar
             const [filterStatus, setFilterStatus] = useState([]); // Array para multi-select
@@ -5273,11 +5287,11 @@
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
-            // Debounce: actualizar búsqueda 300ms después de dejar de escribir
+            // Debounce: actualizar búsqueda después de dejar de escribir
             useEffect(() => {
                 const timer = setTimeout(() => {
                     setSearch(searchInput);
-                }, 300);
+                }, CONFIG.DELAYS.SEARCH_DEBOUNCE);
                 return () => clearTimeout(timer);
             }, [searchInput]);
 
@@ -5727,7 +5741,7 @@
                     </div>
                 </div>
             );
-        };
+        });
 
         const CalendarioPage = ({ data, onEdit }) => {
             const [month, setMonth] = useState(new Date());
@@ -5927,7 +5941,7 @@
         // =====================================================
         // STATUS PAGE (KANBAN)
         // =====================================================
-        const StatusPage = ({ data, onEdit }) => {
+        const StatusPage = React.memo(({ data, onEdit }) => {
             const STATUS_COLUMNS = [
                 { id: 'Programacion', label: 'Programacion', color: '#3b82f6' },
                 { id: 'Ingresados', label: 'Ingresados', color: '#f59e0b' },
@@ -5996,7 +6010,7 @@
                     </div>
                 </div>
             );
-        };
+        });
 
         // =====================================================
         // GESTION PAGE (PDF UPLOAD - BOOKING Y BL)
@@ -7189,11 +7203,11 @@
                 setData(viajes);
             };
 
-            // Polling de respaldo: sincronizar cada 30 segundos por si Realtime falla
+            // Polling de respaldo: sincronizar periódicamente por si Realtime falla
             useEffect(() => {
                 if (appState !== 'app') return;
 
-                const interval = setInterval(() => loadData(), 30000); // 30 segundos
+                const interval = setInterval(() => loadData(), CONFIG.DELAYS.SYNC_INTERVAL);
 
                 return () => clearInterval(interval);
             }, [appState]);
