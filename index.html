@@ -842,6 +842,23 @@
         .auth-switch a { color: var(--primary); font-weight: 600; cursor: pointer; }
         .auth-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.75rem; border-radius: 8px; font-size: 0.8125rem; text-align: center; margin-bottom: 1rem; }
 
+        /* Skeleton Loaders */
+        .skeleton {
+            background: linear-gradient(90deg, var(--card-bg) 25%, var(--hover-bg) 50%, var(--card-bg) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+            border-radius: 8px;
+        }
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-text { height: 1rem; margin-bottom: 0.5rem; }
+        .skeleton-title { height: 1.5rem; width: 60%; margin-bottom: 1rem; }
+        .skeleton-card { height: 120px; border-radius: 16px; }
+        .skeleton-row { height: 3.5rem; margin-bottom: 0.5rem; border-radius: 8px; }
+        .skeleton-kpi { height: 110px; border-radius: 16px; }
+
         /* Responsive - Tablet */
         @media (max-width: 1024px) {
             .sidebar { width: 70px; padding: 1rem 0.5rem; }
@@ -3842,6 +3859,33 @@
             </div>
         );
 
+        // Skeleton Loader para mostrar mientras cargan datos
+        const SkeletonLoader = ({ type = 'card', count = 1 }) => {
+            const items = Array(count).fill(null);
+
+            if (type === 'kpi') {
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', padding: '1rem' }}>
+                        {items.map((_, i) => <div key={i} className="skeleton skeleton-kpi" />)}
+                    </div>
+                );
+            }
+
+            if (type === 'table') {
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
+                        {items.map((_, i) => <div key={i} className="skeleton skeleton-row" />)}
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', padding: '1rem' }}>
+                    {items.map((_, i) => <div key={i} className="skeleton skeleton-card" />)}
+                </div>
+            );
+        };
+
         const Sidebar = ({ activePage, setPage, user, onLogout, isOnline }) => {
             const items = [
                 { id: 'dashboard', label: 'Inicio', icon: 'LayoutDashboard' },
@@ -5203,8 +5247,20 @@
         // =====================================================
         // PAGES (con React.memo para optimizar re-renders)
         // =====================================================
-        const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user }) => {
+        const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user, loading }) => {
             const [kpiModal, setKpiModal] = useState(null);
+
+            // Mostrar skeleton mientras carga
+            if (loading) {
+                return (
+                    <div style={{ padding: '1.5rem' }}>
+                        <SkeletonLoader type="kpi" count={4} />
+                        <div style={{ marginTop: '2rem' }}>
+                            <SkeletonLoader type="card" count={6} />
+                        </div>
+                    </div>
+                );
+            }
 
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
@@ -5370,12 +5426,21 @@
             );
         });
 
-        const ViajesPage = React.memo(({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user }) => {
+        const ViajesPage = React.memo(({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user, loading }) => {
             const [searchInput, setSearchInput] = useState(''); // Valor inmediato del input
             const [search, setSearch] = useState(''); // Valor con debounce para filtrar
             const [filterStatus, setFilterStatus] = useState([]); // Array para multi-select
             const [showStatusDropdown, setShowStatusDropdown] = useState(false);
             const [sortConfig, setSortConfig] = useState({ key: 'Fecha', direction: 'desc' });
+
+            // Mostrar skeleton mientras carga
+            if (loading) {
+                return (
+                    <div style={{ padding: '1.5rem' }}>
+                        <SkeletonLoader type="table" count={10} />
+                    </div>
+                );
+            }
 
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
@@ -7212,6 +7277,7 @@
             const [appState, setAppState] = useState('loading');
             const [user, setUser] = useState(null);
             const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
             const [page, setPage] = useState('dashboard');
             const [syncing, setSyncing] = useState(false);
             const [syncMsg, setSyncMsg] = useState('');
@@ -7267,8 +7333,8 @@
                                 const profile = await ProfileService.getProfile(currentUser.id);
                                 setUser({ ...currentUser, profile });
 
-                                // Cargar datos
-                                await loadData();
+                                // Cargar datos (con skeleton)
+                                await loadData(true);
                                 setAppState('app');
                             } else {
                                 setAppState('auth');
@@ -7287,26 +7353,32 @@
                 init();
             }, []);
 
-            const loadData = async () => {
-                // Cargar datos (Supabase primero, localStorage como respaldo)
-                const d = await DatabaseService.getViajes();
-                const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
-                setData(viajes);
-                // Migración automática de PDFs base64 a Storage (silenciosa, una sola vez)
-                if (!migratingRef.current) {
-                    const pendingDocs = await DatabaseService.countDocsToMigrate();
-                    if (pendingDocs > 0) {
-                        migratingRef.current = true;
-                        DatabaseService.migrateBase64ToStorage().then(result => {
-                            migratingRef.current = false;
-                            if (result.success) {
-                                loadData(); // Recargar datos después de migrar
-                            }
-                        }).catch(err => {
-                            migratingRef.current = false;
-                            console.error('Error en migración automática de PDFs:', err);
-                        });
+            const loadData = async (showLoading = false) => {
+                // Mostrar skeleton solo en carga inicial, no en polling
+                if (showLoading) setLoading(true);
+                try {
+                    // Cargar datos (Supabase primero, localStorage como respaldo)
+                    const d = await DatabaseService.getViajes();
+                    const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
+                    setData(viajes);
+                    // Migración automática de PDFs base64 a Storage (silenciosa, una sola vez)
+                    if (!migratingRef.current) {
+                        const pendingDocs = await DatabaseService.countDocsToMigrate();
+                        if (pendingDocs > 0) {
+                            migratingRef.current = true;
+                            DatabaseService.migrateBase64ToStorage().then(result => {
+                                migratingRef.current = false;
+                                if (result.success) {
+                                    loadData(); // Recargar datos después de migrar
+                                }
+                            }).catch(err => {
+                                migratingRef.current = false;
+                                console.error('Error en migración automática de PDFs:', err);
+                            });
+                        }
                     }
+                } finally {
+                    if (showLoading) setLoading(false);
                 }
             };
 
@@ -7542,7 +7614,7 @@
                         const profile = await ProfileService.getProfile(userData.id);
                         setUser({ ...userData, profile });
                         setSupabaseConnected(true);
-                        await loadData();
+                        await loadData(true);
                         setAppState('app');
                     }}
                 />
@@ -7556,8 +7628,8 @@
                     <div className="main-container">
                         <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} lastAutoBackup={lastAutoBackup} supabaseConnected={supabaseConnected} />
                         <div className="content-scroll">
-                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} user={user} />}
-                            {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} user={user} />}
+                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} user={user} loading={loading} />}
+                            {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} user={user} loading={loading} />}
                             {page === 'status' && <StatusPage data={data} onEdit={openEdit} />}
                             {page === 'calendario' && <CalendarioPage data={data} onEdit={openEdit} />}
                             {page === 'gestion' && <GestionPage onOpenBookingModal={handleOpenBookingModal} onEditViaje={openEdit} onEditViajeWithOriginal={openEditWithOriginal} allData={data} />}
