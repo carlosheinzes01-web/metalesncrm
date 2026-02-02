@@ -5250,18 +5250,6 @@
         const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user, loading }) => {
             const [kpiModal, setKpiModal] = useState(null);
 
-            // Mostrar skeleton mientras carga
-            if (loading) {
-                return (
-                    <div style={{ padding: '1.5rem' }}>
-                        <SkeletonLoader type="kpi" count={4} />
-                        <div style={{ marginTop: '2rem' }}>
-                            <SkeletonLoader type="card" count={6} />
-                        </div>
-                    </div>
-                );
-            }
-
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
@@ -5334,6 +5322,18 @@
             useEffect(() => { lucide.createIcons(); }, [data, kpiModal]);
 
             const openKpiModal = (key) => setKpiModal(kpiFilters[key]);
+
+            // Mostrar skeleton mientras carga
+            if (loading) {
+                return (
+                    <div style={{ padding: '1.5rem' }}>
+                        <SkeletonLoader type="kpi" count={4} />
+                        <div style={{ marginTop: '2rem' }}>
+                            <SkeletonLoader type="card" count={6} />
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div style={{ animation: 'fadeIn 0.3s' }}>
@@ -5432,15 +5432,6 @@
             const [filterStatus, setFilterStatus] = useState([]); // Array para multi-select
             const [showStatusDropdown, setShowStatusDropdown] = useState(false);
             const [sortConfig, setSortConfig] = useState({ key: 'Fecha', direction: 'desc' });
-
-            // Mostrar skeleton mientras carga
-            if (loading) {
-                return (
-                    <div style={{ padding: '1.5rem' }}>
-                        <SkeletonLoader type="table" count={10} />
-                    </div>
-                );
-            }
 
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
@@ -5542,6 +5533,15 @@
                     </div>
                 </th>
             );
+
+            // Mostrar skeleton mientras carga
+            if (loading) {
+                return (
+                    <div style={{ padding: '1.5rem' }}>
+                        <SkeletonLoader type="table" count={10} />
+                    </div>
+                );
+            }
 
             return (
                 <div>
