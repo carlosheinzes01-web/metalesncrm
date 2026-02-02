@@ -1670,9 +1670,6 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0ZWN6dmZqbmtoaXBidmJ3bG14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwODk1NDQsImV4cCI6MjA4NDY2NTU0NH0.sWGm3uRwQv3eioPZFPtkb2GaTvHoRBsZFx44OYzIIrY';
         const isSupabaseConfigured = SUPABASE_URL !== 'TU_SUPABASE_URL_AQUI' && SUPABASE_ANON_KEY !== 'TU_SUPABASE_ANON_KEY_AQUI';
 
-        // Debug: verificar que JavaScript se ejecuta
-        console.log('🚀 Antigravity CRM - Script iniciando...');
-
         // =====================================================
         // CONSTANTES DE APLICACIÓN
         // =====================================================
@@ -7649,10 +7646,8 @@
             );
         };
 
-        console.log('🎯 Antigravity CRM - Montando React...');
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ErrorBoundary><App /></ErrorBoundary>);
-        console.log('✅ Antigravity CRM - React montado correctamente');
     </script>
 </body>
 </html>
