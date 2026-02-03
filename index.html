@@ -3450,20 +3450,18 @@
                 const isoMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
                 if (isoMatch) {
                     const [, year, month, day] = isoMatch;
-                    // Crear fecha local y sumar 1 día para compensar offset de XLSX
+                    // Crear fecha local (sin compensación de día)
                     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                    date.setDate(date.getDate() + 1);
                     const d = String(date.getDate()).padStart(2, '0');
                     const m = String(date.getMonth() + 1).padStart(2, '0');
                     const y = date.getFullYear();
                     return `${d}/${m}/${y}`;
                 }
-                // Formato DD/MM/YYYY ya existente - también sumar 1 día
+                // Formato DD/MM/YYYY ya existente
                 const ddmmMatch = dateValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
                 if (ddmmMatch) {
                     const [, day, month, year] = ddmmMatch;
                     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                    date.setDate(date.getDate() + 1);
                     const d = String(date.getDate()).padStart(2, '0');
                     const m = String(date.getMonth() + 1).padStart(2, '0');
                     const y = date.getFullYear();
@@ -3476,7 +3474,6 @@
             // Solo para objetos Date reales
             if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
                 const date = new Date(dateValue.getTime());
-                date.setDate(date.getDate() + 1);
                 const d = String(date.getDate()).padStart(2, '0');
                 const m = String(date.getMonth() + 1).padStart(2, '0');
                 const y = date.getFullYear();
