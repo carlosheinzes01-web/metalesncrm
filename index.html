@@ -5247,7 +5247,7 @@
         // =====================================================
         // PAGES (con React.memo para optimizar re-renders)
         // =====================================================
-        const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, onExport, onExportFiltered, onImport, summary, user, loading }) => {
+        const DashboardPage = React.memo(({ data, allData, onAdd, onEdit, summary, user, loading }) => {
             const [kpiModal, setKpiModal] = useState(null);
 
             // Verificar si el usuario puede ver datos financieros
@@ -5339,12 +5339,7 @@
                 <div style={{ animation: 'fadeIn 0.3s' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Dashboard</h2>
-                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                            <button className="btn-secondary" onClick={onImport}><i data-lucide="Upload" size="16"></i>Importar</button>
-                            <button className="btn-secondary" onClick={onExport} title="Descargar TODOS los viajes"><i data-lucide="Download" size="16"></i>Exportar Todo</button>
-                            <button className="btn-secondary" onClick={onExportFiltered} title="Solo viajes del rango de fechas seleccionado"><i data-lucide="Download" size="16"></i>Exportar Filtrados</button>
-                            <button className="btn-primary" onClick={onAdd}><i data-lucide="Plus" size="16"></i>Nuevo Viaje</button>
-                        </div>
+                        <button className="btn-primary" onClick={onAdd}><i data-lucide="Plus" size="16"></i>Nuevo Viaje</button>
                     </div>
 
                     <div className="dashboard-grid">
@@ -6510,7 +6505,7 @@
             return result;
         };
 
-        const GestionPage = ({ onOpenBookingModal, onEditViaje, onEditViajeWithOriginal, allData }) => {
+        const GestionPage = ({ onOpenBookingModal, onEditViaje, onEditViajeWithOriginal, allData, onImport, onExport, onExportFiltered }) => {
             const [activeTab, setActiveTab] = useState('booking');
 
             // Estado para Booking
@@ -6828,7 +6823,14 @@
 
             return (
                 <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Gestion de Documentos</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Gestion de Documentos</h2>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <button className="btn-secondary" onClick={onImport}><i data-lucide="Upload" size="16"></i>Importar</button>
+                            <button className="btn-secondary" onClick={onExport} title="Descargar TODOS los viajes"><i data-lucide="Download" size="16"></i>Exportar Todo</button>
+                            <button className="btn-secondary" onClick={onExportFiltered} title="Solo viajes del rango de fechas seleccionado"><i data-lucide="Download" size="16"></i>Exportar Filtrados</button>
+                        </div>
+                    </div>
 
                     {/* Tabs - usando emojis en lugar de lucide */}
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -7627,11 +7629,11 @@
                     <div className="main-container">
                         <Header title={titles[page]} data={filteredData} notifications={notifications} onSearch={openEdit} onNotification={openEdit} theme={theme} setTheme={setTheme} startDate={startDate} endDate={endDate} onDateChange={handleDateChange} lastAutoBackup={lastAutoBackup} supabaseConnected={supabaseConnected} />
                         <div className="content-scroll">
-                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} onExport={handleExport} onExportFiltered={handleExportFiltered} onImport={() => setShowImport(true)} summary={summary} user={user} loading={loading} />}
+                            {page === 'dashboard' && <DashboardPage data={filteredData} allData={data} onAdd={openNew} onEdit={openEdit} summary={summary} user={user} loading={loading} />}
                             {page === 'viajes' && <ViajesPage data={data} onEdit={openEdit} onEditDocs={openEditDocs} onDelete={handleDelete} onAdd={openNew} onExport={handleExport} onImport={() => setShowImport(true)} user={user} loading={loading} />}
                             {page === 'status' && <StatusPage data={data} onEdit={openEdit} />}
                             {page === 'calendario' && <CalendarioPage data={data} onEdit={openEdit} />}
-                            {page === 'gestion' && <GestionPage onOpenBookingModal={handleOpenBookingModal} onEditViaje={openEdit} onEditViajeWithOriginal={openEditWithOriginal} allData={data} />}
+                            {page === 'gestion' && <GestionPage onOpenBookingModal={handleOpenBookingModal} onEditViaje={openEdit} onEditViajeWithOriginal={openEditWithOriginal} allData={data} onImport={() => setShowImport(true)} onExport={handleExport} onExportFiltered={handleExportFiltered} />}
                             {page === 'historial' && <HistorialPage data={data} onEdit={openEdit} />}
                         </div>
                     </div>
