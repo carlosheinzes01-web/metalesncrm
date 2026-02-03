@@ -3490,8 +3490,18 @@
                     return;
                 }
 
+                // Ordenar por fecha de más nuevo a más antiguo
+                const sortedData = [...data].sort((a, b) => {
+                    const dateA = robustParseDate(a.Fecha);
+                    const dateB = robustParseDate(b.Fecha);
+                    if (!dateA && !dateB) return 0;
+                    if (!dateA) return 1;  // Sin fecha va al final
+                    if (!dateB) return -1;
+                    return dateB.getTime() - dateA.getTime();  // Más nuevo primero
+                });
+
                 // Exportar solo las columnas definidas, en orden
-                const cleanData = data.map(row => {
+                const cleanData = sortedData.map(row => {
                     const clean = {};
                     EXPORT_COLUMNS.forEach(col => {
                         let value = row[col] !== undefined ? row[col] : '';
