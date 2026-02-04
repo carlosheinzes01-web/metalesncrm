@@ -3464,7 +3464,7 @@
         // IMPORTANTE: Incluye TODOS los campos del formulario
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
+            'Fecha de embarque', 'Fecha de arribo', 'Status',
             'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -3539,7 +3539,7 @@
                     EXPORT_COLUMNS.forEach(col => {
                         let value = row[col] !== undefined ? row[col] : '';
                         // Formatear fechas
-                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo', 'SI', 'Cut off'].includes(col) && value && value !== 'Verde') {
+                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo'].includes(col) && value) {
                             value = formatDateExport(value);
                         }
                         clean[col] = value;
@@ -4469,7 +4469,7 @@
                                     <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', fontSize: '0.8125rem' }}>
                                         <strong>Columnas esperadas:</strong>
                                         <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                                            Nombre, Fecha, Numero de booking, Numero de BL, Status, Contenedores, Peso, Flete, $venta, $deben, Fecha de embarque, Fecha de arribo, SI, Cut off
+                                            Nombre, Fecha, Numero de booking, Numero de BL, Status, Contenedores, Peso, Flete, $venta, $deben, Fecha de embarque, Fecha de arribo
                                         </p>
                                     </div>
                                 </>
@@ -4701,7 +4701,7 @@
         // Campos que se rastrean en el historial (excluyendo metadata)
         const TRACKED_FIELDS = [
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
+            'Fecha de embarque', 'Fecha de arribo', 'Status',
             'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4716,8 +4716,6 @@
             'Fecha de embarque': 'Embarque',
             'Fecha de arribo': 'Arribo',
             'Status': 'Status',
-            'SI': 'SI',
-            'Cut off': 'Cut Off',
             'Contenedores': 'Contenedores',
             'Peso': 'Peso',
             'Analisis': 'Análisis',
@@ -4909,7 +4907,7 @@
                 // Campos importantes a comparar (excluir metadata y documentos)
                 const fieldsToCompare = [
                     'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-                    'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off',
+                    'Fecha de embarque', 'Fecha de arribo', 'Status',
                     'Contenedores', 'Peso', 'Analisis', 'Flete',
                     '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
                     'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4974,22 +4972,6 @@
                 { value: 'Pago 10%', label: 'Pago 10%' },
                 { value: 'cerrado', label: 'Cerrado' },
             ];
-
-            // Logica para SI y Cut off:
-            // "Verde" = completado exitosamente (la fecha ya paso y todo bien)
-            // Fecha = fecha limite pendiente
-            // Vacio = no establecido
-            const getSIStatus = () => {
-                if (form.SI === 'Verde') return 'verde';
-                if (form.SI && form.SI !== 'Verde') return 'fecha';
-                return 'pendiente';
-            };
-
-            const getCutoffStatus = () => {
-                if (form['Cut off'] === 'Verde') return 'verde';
-                if (form['Cut off'] && form['Cut off'] !== 'Verde') return 'fecha';
-                return 'pendiente';
-            };
 
             return (
                 <div className="modal-overlay" onClick={handleClose}>
@@ -5092,51 +5074,15 @@
                                         </div>
 
                                         <div className="form-section">
-                                            <div className="form-section-title"><i data-lucide="Clock" size="16"></i>Cutoffs y Deadlines</div>
+                                            <div className="form-section-title"><i data-lucide="Building" size="16"></i>Agencia y Costos</div>
                                             <div className="form-grid-2">
                                                 <div className="form-group">
-                                                    <label>SI (Shipping Instructions)</label>
-                                                    <select value={getSIStatus()} onChange={e => {
-                                                        if (e.target.value === 'verde') set('SI', 'Verde');
-                                                        else if (e.target.value === 'pendiente') set('SI', '');
-                                                        else set('SI', form.SI === 'Verde' ? '' : form.SI);
-                                                    }} style={{ marginBottom: '0.5rem' }}>
-                                                        <option value="pendiente">Pendiente</option>
-                                                        <option value="fecha">Con fecha limite</option>
-                                                        <option value="verde">Verde (Completado)</option>
-                                                    </select>
-                                                    {getSIStatus() === 'fecha' && (
-                                                        <input type="date" value={formatDateForInput(form.SI)} onChange={e => set('SI', e.target.value)} />
-                                                    )}
-                                                    {getSIStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Completado exitosamente</div>}
-                                                    {getSIStatus() === 'pendiente' && <div className="pending-badge"><i data-lucide="Clock" size="16"></i>Sin establecer</div>}
+                                                    <label>Agencia Aduanal (MXN)</label>
+                                                    <input type="text" inputMode="decimal" value={form['Agencia aduanal'] || ''} onChange={e => set('Agencia aduanal', e.target.value)} placeholder="Ej: 50000" />
                                                 </div>
-
-                                                <div className="form-group">
-                                                    <label>Cut Off (VGM)</label>
-                                                    <select value={getCutoffStatus()} onChange={e => {
-                                                        if (e.target.value === 'verde') set('Cut off', 'Verde');
-                                                        else if (e.target.value === 'pendiente') set('Cut off', '');
-                                                        else set('Cut off', form['Cut off'] === 'Verde' ? '' : form['Cut off']);
-                                                    }} style={{ marginBottom: '0.5rem' }}>
-                                                        <option value="pendiente">Pendiente</option>
-                                                        <option value="fecha">Con fecha limite</option>
-                                                        <option value="verde">Verde (Completado)</option>
-                                                    </select>
-                                                    {getCutoffStatus() === 'fecha' && (
-                                                        <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
-                                                    )}
-                                                    {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Completado exitosamente</div>}
-                                                    {getCutoffStatus() === 'pendiente' && <div className="pending-badge"><i data-lucide="Clock" size="16"></i>Sin establecer</div>}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="form-section">
-                                            <div className="form-section-title"><i data-lucide="Building" size="16"></i>Agencia</div>
-                                            <div className="form-group">
-                                                <label>Agencia Aduanal</label>
-                                                <input type="text" value={form['Agencia aduanal'] || ''} onChange={e => set('Agencia aduanal', e.target.value)} />
+                                                <FieldWithChange label="Flete (USD)" field="Flete" {...fieldProps}>
+                                                    <input type="text" inputMode="decimal" value={form.Flete || ''} onChange={e => set('Flete', e.target.value)} placeholder="Ej: 5000" />
+                                                </FieldWithChange>
                                             </div>
                                         </div>
                                     </>
@@ -5144,17 +5090,6 @@
 
                                 {activeTab === 'finanzas' && canSeeFinancials && (
                                     <>
-                                        <div className="form-section">
-                                            <div className="form-section-title"><i data-lucide="CreditCard" size="16"></i>Costos de Transporte</div>
-                                            <div className="form-grid-2">
-                                                <FieldWithChange label="Flete (USD)" field="Flete" {...fieldProps}>
-                                                    <input type="text" inputMode="decimal" value={form.Flete || ''} onChange={e => set('Flete', e.target.value)} placeholder="Ej: 5000" />
-                                                </FieldWithChange>
-                                                <FieldWithChange label="Agencia Aduanal (MXN)" field="Agencia aduanal" {...fieldProps}>
-                                                    <input type="text" inputMode="decimal" value={form['Agencia aduanal'] || ''} onChange={e => set('Agencia aduanal', e.target.value)} placeholder="Ej: 50000" />
-                                                </FieldWithChange>
-                                            </div>
-                                        </div>
                                         <div className="form-section">
                                             <div className="form-section-title"><i data-lucide="TrendingUp" size="16"></i>Venta y Cobranza</div>
                                             <div className="form-grid">
@@ -5530,8 +5465,6 @@
                 { key: 'Contenedores', label: 'Conts', type: 'number' },
                 { key: 'Peso', label: 'Peso', type: 'number' },
                 { key: 'Analisis', label: 'Analisis', type: 'number' },
-                { key: 'SI', label: 'SI', type: 'date' },
-                { key: 'Cut off', label: 'Cut Off', type: 'date' },
                 { key: 'Fecha de embarque', label: 'Embarque', type: 'date' },
                 { key: 'Fecha de arribo', label: 'Arribo', type: 'date' },
                 { key: 'Flete', label: 'Flete USD', type: 'number' },
@@ -6244,9 +6177,7 @@
                 file_name: fileName,
                 booking: '',
                 contenedores: '',
-                SI: '',
                 Embarque: '', // No viene en booking
-                'Cut Off': '',
                 fecha: '',
                 flete: ''
             };
@@ -6357,18 +6288,10 @@
                 }
             }
 
-            // C) SI - a la derecha de "SHIPPING INSTRUCTIONS SUBMISSION CUTOFF DATE:"
-            const siAnchor = /SHIPPING\s*INSTRUCTIONS\s*SUBMISSION\s*CUTOFF\s*DATE/i;
-            result.SI = findInSameLine(siAnchor);
-
-            // D) Embarque - NO viene en booking, dejarlo vacio
+            // Embarque - NO viene en booking, dejarlo vacio
             result.Embarque = '';
 
-            // E) Cut Off (VGM) - a la derecha de "VGM CUTOFF DATE:"
-            const cutoffAnchor = /VGM\s*CUTOFF\s*DATE/i;
-            result['Cut Off'] = findInSameLine(cutoffAnchor);
-
-            // F) Fecha - multiples estrategias
+            // Fecha - multiples estrategias
             // Estrategia 1: APPOINTMENT DATE
             for (let i = 0; i < lines.length; i++) {
                 if (/APPOINTMENT\s*DATE/i.test(lines[i])) {
@@ -6613,9 +6536,7 @@
                     setEditedBooking({
                         booking: extraction.booking || '',
                         contenedores: extraction.contenedores || '',
-                        SI: extraction.SI || '',
                         Embarque: extraction.Embarque || '',
-                        'Cut Off': extraction['Cut Off'] || '',
                         fecha: extraction.fecha || '',
                         flete: extraction.flete || ''
                     });
@@ -6708,9 +6629,7 @@
                         Nombre: nombreViaje,
                         'Numero de booking': editedBooking.booking || '',
                         Contenedores: editedBooking.contenedores || '',
-                        SI: editedBooking.SI || '',
                         'Fecha de embarque': editedBooking.Embarque || '',
-                        'Cut off': editedBooking['Cut Off'] || '',
                         Fecha: fecha,
                         Flete: parseFloat((editedBooking.flete || '0').replace(/,/g, '')) || 0,
                         Status: 'Programacion',
@@ -6959,8 +6878,6 @@
                                     <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                                         <ResultField label="Booking #" value={editedBooking.booking} />
                                         <ResultField label="Contenedores" value={editedBooking.contenedores} />
-                                        <ResultField label="SI" value={editedBooking.SI} />
-                                        <ResultField label="Cut Off" value={editedBooking['Cut Off']} />
                                         <ResultField label="Fecha" value={editedBooking.fecha} />
                                         <ResultField label="Flete (USD)" value={editedBooking.flete ? `$${editedBooking.flete}` : '-'} />
                                     </div>
