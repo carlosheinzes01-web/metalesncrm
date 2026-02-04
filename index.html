@@ -4975,13 +4975,14 @@
             ];
 
             // Logica para Cut off:
-            // "Verde" = completado exitosamente
-            // Fecha = fecha limite pendiente
-            // Vacio = no establecido
+            // "Verde" = completado
+            // "Rojo" = vencido/problema
+            // Fecha = fecha limite
             const getCutoffStatus = () => {
                 if (form['Cut off'] === 'Verde') return 'verde';
-                if (form['Cut off'] && form['Cut off'] !== 'Verde') return 'fecha';
-                return 'pendiente';
+                if (form['Cut off'] === 'Rojo') return 'rojo';
+                if (form['Cut off']) return 'fecha';
+                return 'fecha'; // Por defecto mostrar campo de fecha
             };
 
             return (
@@ -5089,18 +5090,18 @@
                                             <div className="form-group">
                                                 <select value={getCutoffStatus()} onChange={e => {
                                                     if (e.target.value === 'verde') set('Cut off', 'Verde');
-                                                    else if (e.target.value === 'pendiente') set('Cut off', '');
-                                                    else set('Cut off', form['Cut off'] === 'Verde' ? '' : form['Cut off']);
+                                                    else if (e.target.value === 'rojo') set('Cut off', 'Rojo');
+                                                    else set('Cut off', (form['Cut off'] === 'Verde' || form['Cut off'] === 'Rojo') ? '' : form['Cut off']);
                                                 }} style={{ marginBottom: '0.5rem' }}>
-                                                    <option value="pendiente">Pendiente</option>
-                                                    <option value="fecha">Con fecha limite</option>
-                                                    <option value="verde">Verde (Completado)</option>
+                                                    <option value="fecha">Fecha límite</option>
+                                                    <option value="verde">Verde</option>
+                                                    <option value="rojo">Rojo</option>
                                                 </select>
                                                 {getCutoffStatus() === 'fecha' && (
                                                     <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
                                                 )}
-                                                {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Completado exitosamente</div>}
-                                                {getCutoffStatus() === 'pendiente' && <div className="pending-badge"><i data-lucide="Clock" size="16"></i>Sin establecer</div>}
+                                                {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Verde</div>}
+                                                {getCutoffStatus() === 'rojo' && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', color: '#dc2626' }}><i data-lucide="XCircle" size="16"></i>Rojo</div>}
                                             </div>
                                         </div>
 
@@ -5893,7 +5894,7 @@
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
-                                            <td>{r['Cut off'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cut off'] ? formatDateSpanish(r['Cut off']) : '-'}</td>
+                                            <td>{r['Cut off'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cut off'] === 'Rojo' ? <span className="badge bg-red">Rojo</span> : r['Cut off'] ? formatDateSpanish(r['Cut off']) : '-'}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
                                             <td>{r.Flete ? formatUSD(r.Flete) : '-'}</td>
