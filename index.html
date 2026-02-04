@@ -5445,19 +5445,21 @@
 
                     <div className="table-card">
                         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 600 }}>Ultimos Viajes</span>
+                            <span style={{ fontWeight: 600 }}>Viajes Activos</span>
+                            <span className="badge bg-blue">{viajesActivos.length} viajes</span>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                             <table>
-                                <thead><tr><th>Nombre</th><th>Booking</th><th>Contenedores</th><th>Peso</th><th>Analisis</th>{canSeeFinancials && <th>Venta Total</th>}{canSeeFinancials && <th>Anticipo</th>}<th></th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Status</th><th>Booking</th><th>Contenedores</th><th>Peso</th><th>Analisis</th>{canSeeFinancials && <th>Venta Total</th>}{canSeeFinancials && <th>Anticipo</th>}<th></th></tr></thead>
                                 <tbody>
-                                    {[...data].sort((a, b) => {
+                                    {[...viajesActivos].sort((a, b) => {
                                         const dateA = robustParseDate(a.Fecha)?.getTime() || 0;
                                         const dateB = robustParseDate(b.Fecha)?.getTime() || 0;
                                         return dateB - dateA;
-                                    }).slice(0, 8).map((r, i) => (
+                                    }).slice(0, 10).map((r, i) => (
                                         <tr key={r.tripId || i}>
                                             <td style={{ fontWeight: 500 }}>{r.Nombre || '-'}</td>
+                                            <td><span className={`badge ${r.Status === 'Altamar' ? 'bg-cyan' : r.Status === 'Liberado' ? 'bg-green' : r.Status === 'Pago 10%' ? 'bg-purple' : 'bg-blue'}`}>{r.Status || '-'}</span></td>
                                             <td>{r['Numero de booking'] || '-'}</td>
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
@@ -5469,7 +5471,7 @@
                                     ))}
                                 </tbody>
                             </table>
-                            {data.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay viajes. Importa un Excel o crea uno nuevo.</div>}
+                            {viajesActivos.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay viajes activos.</div>}
                         </div>
                     </div>
 
