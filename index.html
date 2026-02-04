@@ -4102,6 +4102,34 @@
                     </span>
                     <div className="header-right">
                         <DateRangePicker startDate={startDate} endDate={endDate} onChange={onDateChange} />
+
+                        {/* Botón para seleccionar año actual (1 Ene - fin mes actual) */}
+                        <button
+                            onClick={() => {
+                                const now = new Date();
+                                const startOfYear = new Date(now.getFullYear(), 0, 1);
+                                const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                                onDateChange(startOfYear, endOfMonth);
+                            }}
+                            title="Ver desde 1 de Enero hasta fin del mes actual"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border)',
+                                background: 'var(--hover-bg)',
+                                color: 'var(--text-main)',
+                                fontSize: '0.8125rem',
+                                fontWeight: 500,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <i data-lucide="CalendarRange" size="14"></i>
+                            Año
+                        </button>
+
                         <GlobalSearch data={data} onSelect={onSearch} />
 
                         {/* Indicador de backup automático a Supabase */}
