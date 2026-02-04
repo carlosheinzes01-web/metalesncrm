@@ -2716,6 +2716,40 @@
         };
 
         // =====================================================
+        // MERGE INTELIGENTE - Compara timestamps para no perder cambios locales
+        // =====================================================
+        const mergeByTimestamp = (localViajes, supabaseViajes) => {
+            if (!localViajes || localViajes.length === 0) return supabaseViajes;
+            if (!supabaseViajes || supabaseViajes.length === 0) return localViajes;
+
+            const result = [...supabaseViajes];
+            const supabaseMap = new Map(supabaseViajes.map(v => [v.tripId, v]));
+
+            for (const local of localViajes) {
+                if (!local.tripId) continue;
+                const supabase = supabaseMap.get(local.tripId);
+
+                if (!supabase) {
+                    // Viaje solo existe en local, agregarlo
+                    result.push(local);
+                } else {
+                    // Comparar timestamps, mantener el más reciente
+                    const localDate = new Date(local.lastModified || 0);
+                    const supabaseDate = new Date(supabase.lastModified || 0);
+
+                    if (localDate > supabaseDate) {
+                        const idx = result.findIndex(v => v.tripId === local.tripId);
+                        if (idx >= 0) {
+                            result[idx] = local;
+                            console.log(`🔄 Merge: "${local.Nombre}" - conservando versión local más reciente`);
+                        }
+                    }
+                }
+            }
+            return result;
+        };
+
+        // =====================================================
         // DATABASE SERVICE - SUPABASE PRIMERO, LOCALSTORAGE COMO RESPALDO
         // =====================================================
         const DatabaseService = {
@@ -2736,11 +2770,10 @@
                         const { data, error } = await sb.from('viajes').select('*').order('created_at', { ascending: false });
                         if (error) throw error;
 
-                        // Guardar copia local como respaldo
-                        if (data && data.length > 0) {
-                            localStorage.setItem('antigravity_crm_data', JSON.stringify(data));
-                        }
-                        viajes = data || [];
+                        // Merge inteligente: conservar cambios locales más recientes
+                        const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                        viajes = mergeByTimestamp(localData, data || []);
+                        localStorage.setItem('antigravity_crm_data', JSON.stringify(viajes));
                     } catch (err) {
                         console.error('❌ Error Supabase, usando localStorage:', err.message);
                         const saved = localStorage.getItem('antigravity_crm_data');
@@ -4543,7 +4576,7 @@
                     // Luego actualizar el padre (con info para historial)
                     const newDocs = { ...(documentos || createEmptyDocumentos()) };
                     newDocs[docType.id] = newDocData;
-                    onUpdate(newDocs, docType.id, 'upload', finalFileName);
+                    onUpdate(newDocs, docType.id, 'upload', customFileName);
 
                     alert('Documento subido correctamente');
                 } catch (err) {
