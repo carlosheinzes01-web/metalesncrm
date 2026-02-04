@@ -6201,7 +6201,10 @@
                                                 <div className="kanban-card-title">{v.Nombre || 'Sin nombre'}</div>
                                                 <div className="kanban-card-meta">
                                                     <span>Booking: {v['Numero de booking'] || '-'}</span>
-                                                    <span>Embarque: {formatDateSpanish(v['Fecha de embarque'])}</span>
+                                                    {(col.id === 'Altamar' || col.id === 'Liberado')
+                                                        ? <span>Arribo: {formatDateSpanish(v['Fecha de arribo'])}</span>
+                                                        : <span>Embarque: {formatDateSpanish(v['Fecha de embarque'])}</span>
+                                                    }
                                                     {v['$venta'] && <span style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(v['$venta'])}</span>}
                                                 </div>
                                             </div>
