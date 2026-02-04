@@ -5305,9 +5305,17 @@
             // Verificar si el usuario puede ver datos financieros
             const canSeeFinancials = ProfileService.canSeeFinancials(user?.profile);
 
-            // Stats filtrados por fecha (data) excepto saldo, 10% y anticipos que usan allData
+            // Viajes activos: todos los que NO están cerrados (para KPIs operativos)
+            const viajesActivos = useMemo(() => {
+                return allData.filter(r => r.Status && r.Status.toLowerCase() !== 'cerrado');
+            }, [allData]);
+
+            // Stats: KPIs operativos usan viajesActivos, financieros usan data (filtrado por fecha)
             const stats = useMemo(() => {
-                const analisisValues = data.map(r => Number(r.Analisis) || 0).filter(v => v > 0);
+                // KPIs operativos (por STATUS activo, no por fecha)
+                const analisisValues = viajesActivos.map(r => Number(r.Analisis) || 0).filter(v => v > 0);
+
+                // KPIs financieros (por fecha o todos los datos)
                 // 10% Cobrable: solo viajes con Status "Pago 10%"
                 const diezPorciento = allData.filter(r => r.Status === 'Pago 10%').reduce((s, r) => s + (Number(r['10%']) || 0), 0);
                 // Anticipos: Total de todos los viajes
@@ -5330,10 +5338,12 @@
                 const mesActual = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][now.getMonth()];
 
                 return {
-                    viajes: data.length,
-                    conts: data.reduce((s, r) => s + (Number(r.Contenedores) || 0), 0),
-                    peso: data.reduce((s, r) => s + (Number(r.Peso) || 0), 0),
+                    // KPIs operativos: viajes activos (no cerrados)
+                    viajes: viajesActivos.length,
+                    conts: viajesActivos.reduce((s, r) => s + (Number(r.Contenedores) || 0), 0),
+                    peso: viajesActivos.reduce((s, r) => s + (Number(r.Peso) || 0), 0),
                     promedioAnalisis: analisisValues.length > 0 ? analisisValues.reduce((a, b) => a + b, 0) / analisisValues.length : 0,
+                    // KPIs financieros: filtrados por fecha
                     venta: data.reduce((s, r) => s + (Number(r['$venta']) || 0), 0),
                     // Estos usan TODOS los datos (sin filtro de fecha)
                     saldo,
@@ -5343,9 +5353,9 @@
                     anticiposPagados,
                     mesActual,
                 };
-            }, [data, allData]);
+            }, [data, allData, viajesActivos]);
 
-            // Filtros para cada KPI (saldo, 10% y anticipos usan allData)
+            // Filtros para cada KPI
             const kpiFilters = useMemo(() => {
                 const now = new Date();
                 const currentMonth = now.getMonth();
@@ -5353,11 +5363,13 @@
                 const mesActual = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][currentMonth];
 
                 return {
-                    viajes: { title: 'Todos los Viajes (en rango)', viajes: data },
-                    contenedores: { title: 'Viajes con Contenedores', viajes: data.filter(v => Number(v.Contenedores) > 0) },
-                    peso: { title: 'Viajes con Peso Registrado', viajes: data.filter(v => Number(v.Peso) > 0) },
-                    analisis: { title: 'Viajes con Análisis', viajes: data.filter(v => Number(v.Analisis) > 0) },
-                    venta: { title: 'Viajes con Venta', viajes: data.filter(v => Number(v['$venta']) > 0) },
+                    // KPIs operativos: viajes activos (no cerrados)
+                    viajes: { title: 'Viajes Activos (no cerrados)', viajes: viajesActivos },
+                    contenedores: { title: 'Viajes Activos con Contenedores', viajes: viajesActivos.filter(v => Number(v.Contenedores) > 0) },
+                    peso: { title: 'Viajes Activos con Peso', viajes: viajesActivos.filter(v => Number(v.Peso) > 0) },
+                    analisis: { title: 'Viajes Activos con Análisis', viajes: viajesActivos.filter(v => Number(v.Analisis) > 0) },
+                    // KPIs financieros: filtrados por fecha
+                    venta: { title: 'Viajes con Venta (en rango)', viajes: data.filter(v => Number(v['$venta']) > 0) },
                     // Estos muestran TODOS los viajes (sin filtro de fecha)
                     saldo: { title: 'Saldo Pendiente (Anticipos Pendientes + 10%)', viajes: allData.filter(v => (!v.anticipoPagado && Number(v.Anticipos) > 0) || (v.Status === 'Pago 10%' && Number(v['10%']) > 0)) },
                     diezPorciento: { title: 'Viajes con Status Pago 10%', viajes: allData.filter(v => v.Status === 'Pago 10%') },
@@ -5369,7 +5381,7 @@
                         return fechaPago.getMonth() === currentMonth && fechaPago.getFullYear() === currentYear;
                     }) },
                 };
-            }, [data, allData]);
+            }, [data, allData, viajesActivos]);
 
             useEffect(() => { lucide.createIcons(); }, [data, kpiModal]);
 
@@ -5395,7 +5407,7 @@
                     </div>
 
                     <div className="dashboard-grid">
-                        <KPICard label="Viajes en Rango" value={stats.viajes} icon="Ship" clickable onClick={() => openKpiModal('viajes')} />
+                        <KPICard label="Viajes Activos" value={stats.viajes} icon="Ship" clickable onClick={() => openKpiModal('viajes')} />
                         <KPICard label="Contenedores" value={formatNumber(stats.conts)} icon="Box" clickable onClick={() => openKpiModal('contenedores')} />
                         <KPICard label="Peso Total (t)" value={formatNumber(stats.peso)} icon="Scale" clickable onClick={() => openKpiModal('peso')} />
                         <KPICard label="Promedio Analisis" value={formatPercent(stats.promedioAnalisis)} icon="BarChart3" clickable onClick={() => openKpiModal('analisis')} />
