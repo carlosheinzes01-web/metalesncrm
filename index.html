@@ -361,6 +361,14 @@
         tr:last-child td { border-bottom: none; }
         tr:hover { background-color: #f8fafc; }
 
+        /* Columnas fijas (sticky) para scroll horizontal */
+        .sticky-col-1 { position: sticky; left: 0; z-index: 2; background: inherit; }
+        .sticky-col-2 { position: sticky; left: 75px; z-index: 2; background: inherit; }
+        thead .sticky-col-1, thead .sticky-col-2 { background: #f8fafc; z-index: 3; }
+        tbody tr .sticky-col-1, tbody tr .sticky-col-2 { background: var(--card-bg); }
+        tbody tr:hover .sticky-col-1, tbody tr:hover .sticky-col-2 { background: #f8fafc; }
+        .sticky-col-1::after, .sticky-col-2::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 1px; background: var(--border); }
+
         .badge { padding: 0.25rem 0.625rem; border-radius: 9999px; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
         .bg-blue { background: #dbeafe; color: #1e40af; }
         .bg-green { background: #dcfce7; color: #166534; }
@@ -5550,18 +5558,21 @@
             const statuses = useMemo(() => [...new Set(data.map(v => v.Status).filter(Boolean))], [data]);
             useEffect(() => { lucide.createIcons(); }, [sorted, sortConfig, showStatusDropdown, filterStatus]);
 
-            const SortHeader = ({ col }) => (
-                <th onClick={() => handleSort(col.key)} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        {col.label}
-                        {sortConfig.key === col.key ? (
-                            <i data-lucide={sortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} size="14" color="var(--primary)"></i>
-                        ) : (
-                            <i data-lucide="ChevronsUpDown" size="14" color="#cbd5e1"></i>
-                        )}
-                    </div>
-                </th>
-            );
+            const SortHeader = ({ col, index }) => {
+                const stickyClass = index === 0 ? 'sticky-col-1' : index === 1 ? 'sticky-col-2' : '';
+                return (
+                    <th onClick={() => handleSort(col.key)} className={stickyClass} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            {col.label}
+                            {sortConfig.key === col.key ? (
+                                <i data-lucide={sortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} size="14" color="var(--primary)"></i>
+                            ) : (
+                                <i data-lucide="ChevronsUpDown" size="14" color="#cbd5e1"></i>
+                            )}
+                        </div>
+                    </th>
+                );
+            };
 
             // Mostrar skeleton mientras carga
             if (loading) {
@@ -5853,7 +5864,7 @@
                             <table style={{ fontSize: '0.75rem' }}>
                                 <thead>
                                     <tr>
-                                        {columns.map(col => <SortHeader key={col.key} col={col} />)}
+                                        {columns.map((col, idx) => <SortHeader key={col.key} col={col} index={idx} />)}
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -5862,8 +5873,8 @@
                                         const docsCount = countUploadedDocs(r.documentos);
                                         return (
                                         <tr key={r.tripId || i}>
-                                            <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r.Fecha)}</td>
-                                            <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{r.Nombre || '-'}</td>
+                                            <td className="sticky-col-1" style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r.Fecha)}</td>
+                                            <td className="sticky-col-2" style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{r.Nombre || '-'}</td>
                                             <td>{r['Numero de booking'] || '-'}</td>
                                             <td>{r['Numero de BL'] || '-'}</td>
                                             <td><span className={`badge ${r.Status === 'cerrado' ? 'bg-green' : r.Status === 'Altamar' ? 'bg-cyan' : r.Status === 'Pago 10%' ? 'bg-purple' : 'bg-blue'}`}>{r.Status || '-'}</span></td>
