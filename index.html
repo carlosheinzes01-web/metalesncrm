@@ -5893,7 +5893,6 @@
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
-                                            <td>{r.SI === 'Verde' ? <span className="badge bg-green">Verde</span> : r.SI ? formatDateSpanish(r.SI) : '-'}</td>
                                             <td>{r['Cut off'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cut off'] ? formatDateSpanish(r['Cut off']) : '-'}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
