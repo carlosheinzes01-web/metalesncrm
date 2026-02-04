@@ -3464,7 +3464,7 @@
         // IMPORTANTE: Incluye TODOS los campos del formulario
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
             'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -3539,7 +3539,7 @@
                     EXPORT_COLUMNS.forEach(col => {
                         let value = row[col] !== undefined ? row[col] : '';
                         // Formatear fechas
-                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo'].includes(col) && value) {
+                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo', 'Cut off'].includes(col) && value && value !== 'Verde') {
                             value = formatDateExport(value);
                         }
                         clean[col] = value;
@@ -4469,7 +4469,7 @@
                                     <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', fontSize: '0.8125rem' }}>
                                         <strong>Columnas esperadas:</strong>
                                         <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                                            Nombre, Fecha, Numero de booking, Numero de BL, Status, Contenedores, Peso, Flete, $venta, $deben, Fecha de embarque, Fecha de arribo
+                                            Nombre, Fecha, Numero de booking, Numero de BL, Status, Contenedores, Peso, Flete, $venta, $deben, Fecha de embarque, Fecha de arribo, Cut off
                                         </p>
                                     </div>
                                 </>
@@ -4701,7 +4701,7 @@
         // Campos que se rastrean en el historial (excluyendo metadata)
         const TRACKED_FIELDS = [
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
             'Contenedores', 'Peso', 'Analisis', 'Flete',
             '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4716,6 +4716,7 @@
             'Fecha de embarque': 'Embarque',
             'Fecha de arribo': 'Arribo',
             'Status': 'Status',
+            'Cut off': 'Cut Off',
             'Contenedores': 'Contenedores',
             'Peso': 'Peso',
             'Analisis': 'Análisis',
@@ -4907,7 +4908,7 @@
                 // Campos importantes a comparar (excluir metadata y documentos)
                 const fieldsToCompare = [
                     'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-                    'Fecha de embarque', 'Fecha de arribo', 'Status',
+                    'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
                     'Contenedores', 'Peso', 'Analisis', 'Flete',
                     '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
                     'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4972,6 +4973,16 @@
                 { value: 'Pago 10%', label: 'Pago 10%' },
                 { value: 'cerrado', label: 'Cerrado' },
             ];
+
+            // Logica para Cut off:
+            // "Verde" = completado exitosamente
+            // Fecha = fecha limite pendiente
+            // Vacio = no establecido
+            const getCutoffStatus = () => {
+                if (form['Cut off'] === 'Verde') return 'verde';
+                if (form['Cut off'] && form['Cut off'] !== 'Verde') return 'fecha';
+                return 'pendiente';
+            };
 
             return (
                 <div className="modal-overlay" onClick={handleClose}>
@@ -5070,6 +5081,26 @@
                                                     <label>Fecha de Arribo (ETA)</label>
                                                     <input type="date" value={formatDateForInput(form['Fecha de arribo'])} onChange={e => set('Fecha de arribo', e.target.value)} />
                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="form-section">
+                                            <div className="form-section-title"><i data-lucide="Clock" size="16"></i>Cut Off (VGM)</div>
+                                            <div className="form-group">
+                                                <select value={getCutoffStatus()} onChange={e => {
+                                                    if (e.target.value === 'verde') set('Cut off', 'Verde');
+                                                    else if (e.target.value === 'pendiente') set('Cut off', '');
+                                                    else set('Cut off', form['Cut off'] === 'Verde' ? '' : form['Cut off']);
+                                                }} style={{ marginBottom: '0.5rem' }}>
+                                                    <option value="pendiente">Pendiente</option>
+                                                    <option value="fecha">Con fecha limite</option>
+                                                    <option value="verde">Verde (Completado)</option>
+                                                </select>
+                                                {getCutoffStatus() === 'fecha' && (
+                                                    <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
+                                                )}
+                                                {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Completado exitosamente</div>}
+                                                {getCutoffStatus() === 'pendiente' && <div className="pending-badge"><i data-lucide="Clock" size="16"></i>Sin establecer</div>}
                                             </div>
                                         </div>
 
@@ -5465,6 +5496,7 @@
                 { key: 'Contenedores', label: 'Conts', type: 'number' },
                 { key: 'Peso', label: 'Peso', type: 'number' },
                 { key: 'Analisis', label: 'Analisis', type: 'number' },
+                { key: 'Cut off', label: 'Cut Off', type: 'date' },
                 { key: 'Fecha de embarque', label: 'Embarque', type: 'date' },
                 { key: 'Fecha de arribo', label: 'Arribo', type: 'date' },
                 { key: 'Flete', label: 'Flete USD', type: 'number' },
@@ -6178,6 +6210,7 @@
                 booking: '',
                 contenedores: '',
                 Embarque: '', // No viene en booking
+                'Cut Off': '',
                 fecha: '',
                 flete: ''
             };
@@ -6290,6 +6323,10 @@
 
             // Embarque - NO viene en booking, dejarlo vacio
             result.Embarque = '';
+
+            // Cut Off (VGM) - a la derecha de "VGM CUTOFF DATE:"
+            const cutoffAnchor = /VGM\s*CUTOFF\s*DATE/i;
+            result['Cut Off'] = findInSameLine(cutoffAnchor);
 
             // Fecha - multiples estrategias
             // Estrategia 1: APPOINTMENT DATE
@@ -6537,6 +6574,7 @@
                         booking: extraction.booking || '',
                         contenedores: extraction.contenedores || '',
                         Embarque: extraction.Embarque || '',
+                        'Cut Off': extraction['Cut Off'] || '',
                         fecha: extraction.fecha || '',
                         flete: extraction.flete || ''
                     });
@@ -6630,6 +6668,7 @@
                         'Numero de booking': editedBooking.booking || '',
                         Contenedores: editedBooking.contenedores || '',
                         'Fecha de embarque': editedBooking.Embarque || '',
+                        'Cut off': editedBooking['Cut Off'] || '',
                         Fecha: fecha,
                         Flete: parseFloat((editedBooking.flete || '0').replace(/,/g, '')) || 0,
                         Status: 'Programacion',
@@ -6878,6 +6917,7 @@
                                     <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                                         <ResultField label="Booking #" value={editedBooking.booking} />
                                         <ResultField label="Contenedores" value={editedBooking.contenedores} />
+                                        <ResultField label="Cut Off" value={editedBooking['Cut Off']} />
                                         <ResultField label="Fecha" value={editedBooking.fecha} />
                                         <ResultField label="Flete (USD)" value={editedBooking.flete ? `$${editedBooking.flete}` : '-'} />
                                     </div>
