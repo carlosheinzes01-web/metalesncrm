@@ -5819,15 +5819,15 @@
                                                 onClick={(e) => { e.stopPropagation(); onEditDocs(r); }}
                                             >
                                                 <div className="mobile-docs-progress">
-                                                    {[...Array(6)].map((_, idx) => (
+                                                    {[...Array(8)].map((_, idx) => (
                                                         <div
                                                             key={idx}
                                                             className={`mobile-docs-dot ${idx < docsCount ? 'filled' : ''}`}
                                                         ></div>
                                                     ))}
                                                 </div>
-                                                <span className={`mobile-docs-text ${docsCount === 6 ? 'complete' : ''}`}>
-                                                    {docsCount}/6
+                                                <span className={`mobile-docs-text ${docsCount === 8 ? 'complete' : ''}`}>
+                                                    {docsCount}/8
                                                 </span>
                                             </div>
                                             <div className="mobile-card-actions">
@@ -5899,7 +5899,7 @@
                                                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                                 >
                                                     <i data-lucide="Folder" size="12"></i>
-                                                    {docsCount}/6
+                                                    {docsCount}/8
                                                 </span>
                                             </td>
                                             <td>{r.Contenedores || '-'}</td>
