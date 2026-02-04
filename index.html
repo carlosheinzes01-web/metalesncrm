@@ -3473,7 +3473,7 @@
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
             'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
-            'Contenedores', 'Peso', 'Analisis', 'Flete',
+            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
             '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
@@ -4710,7 +4710,7 @@
         const TRACKED_FIELDS = [
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
             'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
-            'Contenedores', 'Peso', 'Analisis', 'Flete',
+            'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
             '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
@@ -4729,6 +4729,7 @@
             'Peso': 'Peso',
             'Analisis': 'Análisis',
             'Flete': 'Flete',
+            'Numero de factura': 'Nº Factura',
             '$venta': 'Venta',
             '$deben': 'Deben',
             '10%': '10%',
@@ -4917,7 +4918,7 @@
                 const fieldsToCompare = [
                     'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
                     'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
-                    'Contenedores', 'Peso', 'Analisis', 'Flete',
+                    'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
                     '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
                     'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
                 ];
@@ -5123,6 +5124,14 @@
                                                 <FieldWithChange label="Flete (USD)" field="Flete" {...fieldProps}>
                                                     <input type="text" inputMode="decimal" value={form.Flete || ''} onChange={e => set('Flete', e.target.value)} placeholder="Ej: 5000" />
                                                 </FieldWithChange>
+                                            </div>
+                                        </div>
+
+                                        <div className="form-section">
+                                            <div className="form-section-title"><i data-lucide="FileText" size="16"></i>Factura</div>
+                                            <div className="form-group">
+                                                <label>Número de Factura</label>
+                                                <input type="text" value={form['Numero de factura'] || ''} onChange={e => set('Numero de factura', e.target.value)} placeholder="Ej: FAC-001" />
                                             </div>
                                         </div>
                                     </>
