@@ -3472,7 +3472,7 @@
         // IMPORTANTE: Incluye TODOS los campos del formulario
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off', 'Cierre despacho',
             'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
             '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -3707,7 +3707,7 @@
                     if (daysEmb !== null && daysEmb >= 0 && daysEmb <= 7) {
                         notifications.push({
                             id: `emb-${v.tripId}`, type: daysEmb <= 2 ? 'danger' : 'warning',
-                            title: daysEmb === 0 ? 'Embarque HOY' : `Embarque en ${daysEmb} dias`,
+                            title: daysEmb === 0 ? 'Zarpe HOY' : `Zarpe en ${daysEmb} dias`,
                             message: `${v.Nombre} - ${v['Numero de booking'] || 'Sin booking'}`,
                             viaje: v, priority: daysEmb <= 2 ? 1 : 2
                         });
@@ -4374,7 +4374,7 @@
                             <div className="alert-card-count">{summary.urgentes}</div>
                             <i data-lucide="AlertTriangle" size="24" color="#ef4444"></i>
                         </div>
-                        <div className="alert-card-title">Embarques Urgentes</div>
+                        <div className="alert-card-title">Zarpes Urgentes</div>
                         <div className="alert-card-subtitle">Proximas 48 horas</div>
                     </div>
                     <div className="alert-card warning" onClick={() => summary.vProximos[0] && onClick(summary.vProximos[0])}>
@@ -4383,7 +4383,7 @@
                             <i data-lucide="Calendar" size="24" color="#f59e0b"></i>
                         </div>
                         <div className="alert-card-title">Proximos 7 Dias</div>
-                        <div className="alert-card-subtitle">Embarques y arribos</div>
+                        <div className="alert-card-subtitle">Zarpes y arribos</div>
                     </div>
                     <div className="alert-card info" onClick={() => summary.vSaldos[0] && onClick(summary.vSaldos[0])}>
                         <div className="alert-card-header">
@@ -4709,7 +4709,7 @@
         // Campos que se rastrean en el historial (excluyendo metadata)
         const TRACKED_FIELDS = [
             'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off', 'Cierre despacho',
             'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
             '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4721,10 +4721,11 @@
             'Numero de booking': 'Booking',
             'Numero de BL': 'BL',
             'Fecha': 'Fecha',
-            'Fecha de embarque': 'Embarque',
+            'Fecha de embarque': 'Zarpe (ETD)',
             'Fecha de arribo': 'Arribo',
             'Status': 'Status',
-            'Cut off': 'Cut Off',
+            'Cut off': 'SI/VGM',
+            'Cierre despacho': 'Cierre Despacho',
             'Contenedores': 'Contenedores',
             'Peso': 'Peso',
             'Analisis': 'Análisis',
@@ -4917,7 +4918,7 @@
                 // Campos importantes a comparar (excluir metadata y documentos)
                 const fieldsToCompare = [
                     'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-                    'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off',
+                    'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off', 'Cierre despacho',
                     'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
                     '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'Agencia aduanal',
                     'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
@@ -4992,6 +4993,14 @@
                 if (form['Cut off'] === 'Rojo') return 'rojo';
                 if (form['Cut off']) return 'fecha';
                 return 'fecha'; // Por defecto mostrar campo de fecha
+            };
+
+            // Logica para Cierre despacho (igual que Cut off)
+            const getCierreDespachoStatus = () => {
+                if (form['Cierre despacho'] === 'Verde') return 'verde';
+                if (form['Cierre despacho'] === 'Rojo') return 'rojo';
+                if (form['Cierre despacho']) return 'fecha';
+                return 'fecha';
             };
 
             return (
@@ -5084,7 +5093,7 @@
                                             <div className="form-section-title"><i data-lucide="Calendar" size="16"></i>Fechas de Transito</div>
                                             <div className="form-grid-2">
                                                 <div className="form-group">
-                                                    <label>Fecha de Embarque (ETD)</label>
+                                                    <label>Zarpe (ETD)</label>
                                                     <input type="date" value={formatDateForInput(form['Fecha de embarque'])} onChange={e => set('Fecha de embarque', e.target.value)} />
                                                 </div>
                                                 <div className="form-group">
@@ -5095,7 +5104,7 @@
                                         </div>
 
                                         <div className="form-section">
-                                            <div className="form-section-title"><i data-lucide="Clock" size="16"></i>Cut Off (VGM)</div>
+                                            <div className="form-section-title"><i data-lucide="Clock" size="16"></i>SI/VGM</div>
                                             <div className="form-group">
                                                 <select value={getCutoffStatus()} onChange={e => {
                                                     if (e.target.value === 'verde') set('Cut off', 'Verde');
@@ -5111,6 +5120,26 @@
                                                 )}
                                                 {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Verde</div>}
                                                 {getCutoffStatus() === 'rojo' && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', color: '#dc2626' }}><i data-lucide="XCircle" size="16"></i>Rojo</div>}
+                                            </div>
+                                        </div>
+
+                                        <div className="form-section">
+                                            <div className="form-section-title"><i data-lucide="ClipboardCheck" size="16"></i>Cierre Despacho</div>
+                                            <div className="form-group">
+                                                <select value={getCierreDespachoStatus()} onChange={e => {
+                                                    if (e.target.value === 'verde') set('Cierre despacho', 'Verde');
+                                                    else if (e.target.value === 'rojo') set('Cierre despacho', 'Rojo');
+                                                    else set('Cierre despacho', (form['Cierre despacho'] === 'Verde' || form['Cierre despacho'] === 'Rojo') ? '' : form['Cierre despacho']);
+                                                }} style={{ marginBottom: '0.5rem' }}>
+                                                    <option value="fecha">Fecha límite</option>
+                                                    <option value="verde">Verde</option>
+                                                    <option value="rojo">Rojo</option>
+                                                </select>
+                                                {getCierreDespachoStatus() === 'fecha' && (
+                                                    <input type="date" value={formatDateForInput(form['Cierre despacho'])} onChange={e => set('Cierre despacho', e.target.value)} />
+                                                )}
+                                                {getCierreDespachoStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Verde</div>}
+                                                {getCierreDespachoStatus() === 'rojo' && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', color: '#dc2626' }}><i data-lucide="XCircle" size="16"></i>Rojo</div>}
                                             </div>
                                         </div>
 
@@ -5528,8 +5557,9 @@
                 { key: 'Contenedores', label: 'Conts', type: 'number' },
                 { key: 'Peso', label: 'Peso', type: 'number' },
                 { key: 'Analisis', label: 'Analisis', type: 'number' },
-                { key: 'Cut off', label: 'Cut Off', type: 'date' },
-                { key: 'Fecha de embarque', label: 'Embarque', type: 'date' },
+                { key: 'Cut off', label: 'SI/VGM', type: 'date' },
+                { key: 'Cierre despacho', label: 'Cierre Desp.', type: 'date' },
+                { key: 'Fecha de embarque', label: 'Zarpe', type: 'date' },
                 { key: 'Fecha de arribo', label: 'Arribo', type: 'date' },
                 { key: 'Flete', label: 'Flete USD', type: 'number' },
                 { key: '$venta', label: 'Venta', type: 'number', financial: true },
@@ -5816,7 +5846,7 @@
                                                     <i data-lucide="Ship" size="14"></i>
                                                 </div>
                                                 <div className="mobile-date-info">
-                                                    <span className="mobile-date-label">Embarque</span>
+                                                    <span className="mobile-date-label">Zarpe</span>
                                                     <span className="mobile-date-value">
                                                         {formatDateSpanish(r['Fecha de embarque']) || '—'}
                                                     </span>
@@ -5929,6 +5959,7 @@
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
                                             <td>{r['Cut off'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cut off'] === 'Rojo' ? <span className="badge bg-red">Rojo</span> : r['Cut off'] ? formatDateSpanish(r['Cut off']) : '-'}</td>
+                                            <td>{r['Cierre despacho'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cierre despacho'] === 'Rojo' ? <span className="badge bg-red">Rojo</span> : r['Cierre despacho'] ? formatDateSpanish(r['Cierre despacho']) : '-'}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
                                             <td>{r.Flete ? formatUSD(r.Flete) : '-'}</td>
@@ -6217,7 +6248,7 @@
                                                     <span>Booking: {v['Numero de booking'] || '-'}</span>
                                                     {(col.id === 'Altamar' || col.id === 'Liberado')
                                                         ? <span>Arribo: {formatDateSpanish(v['Fecha de arribo'])}</span>
-                                                        : <span>Embarque: {formatDateSpanish(v['Fecha de embarque'])}</span>
+                                                        : <span>Zarpe: {formatDateSpanish(v['Fecha de embarque'])}</span>
                                                     }
                                                     {v['$venta'] && <span style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(v['$venta'])}</span>}
                                                 </div>
@@ -6420,17 +6451,42 @@
                 }
             }
 
-            // G) Flete - buscar monto USD (puede no venir)
+            // G) Flete - sumar todos los cargos USD (Ocean Freight + Documentation Fee, etc.)
+            let fleteTotal = 0;
             for (let line of lines) {
+                // Buscar lineas con montos USD que sean cargos (Ocean Freight, Documentation Fee, etc.)
                 const fleteMatch = line.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*USD/i);
-                if (fleteMatch) {
+                if (fleteMatch && /FREIGHT|DOCUMENTATION|FEE/i.test(line)) {
                     const val = parseFloat(fleteMatch[1].replace(/,/g, ''));
-                    if (val > 100) { // Ignorar valores muy pequeños
-                        result.flete = fleteMatch[1];
-                        break;
-                    }
+                    if (val > 0) fleteTotal += val;
                 }
             }
+            if (fleteTotal > 0) {
+                result.flete = fleteTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            // Convertir fechas de formato inglés (MM/DD/YYYY) a ISO (YYYY-MM-DD)
+            const convertEnglishDateToISO = (dateStr) => {
+                if (!dateStr) return dateStr;
+                const match = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+                if (!match) return dateStr;
+                let part1 = parseInt(match[1]);
+                let part2 = parseInt(match[2]);
+                let year = match[3].length === 2 ? '20' + match[3] : match[3];
+                // PDF en inglés: part1=mes, part2=día
+                // Si part1 > 12, entonces part1 es día (ya está en DD/MM)
+                let month, day;
+                if (part1 > 12) {
+                    day = String(part1).padStart(2, '0');
+                    month = String(part2).padStart(2, '0');
+                } else {
+                    month = String(part1).padStart(2, '0');
+                    day = String(part2).padStart(2, '0');
+                }
+                return `${year}-${month}-${day}`;
+            };
+            result.fecha = convertEnglishDateToISO(result.fecha);
+            result['Cut Off'] = convertEnglishDateToISO(result['Cut Off']);
 
             return result;
         };
@@ -6954,7 +7010,7 @@
                                     <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                                         <ResultField label="Booking #" value={editedBooking.booking} />
                                         <ResultField label="Contenedores" value={editedBooking.contenedores} />
-                                        <ResultField label="Cut Off" value={editedBooking['Cut Off']} />
+                                        <ResultField label="SI/VGM" value={editedBooking['Cut Off']} />
                                         <ResultField label="Fecha" value={editedBooking.fecha} />
                                         <ResultField label="Flete (USD)" value={editedBooking.flete ? `$${editedBooking.flete}` : '-'} />
                                     </div>
@@ -7503,6 +7559,12 @@
                     }
 
                     if (esNuevo) {
+                        // Auto-calcular Cierre despacho: 3 días antes de Zarpe (solo al crear)
+                        if (toSave['Fecha de embarque'] && !toSave['Cierre despacho']) {
+                            const zarpe = new Date(toSave['Fecha de embarque'] + 'T12:00:00');
+                            zarpe.setDate(zarpe.getDate() - 3);
+                            toSave['Cierre despacho'] = zarpe.toISOString().split('T')[0];
+                        }
                         // Viaje nuevo: registrar creación
                         toSave.historial.push(createHistorialEntry('Creado', {}, usuario));
                     } else {
