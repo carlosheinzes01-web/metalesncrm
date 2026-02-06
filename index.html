@@ -4984,18 +4984,7 @@
                 { value: 'cerrado', label: 'Cerrado' },
             ];
 
-            // Logica para Cut off:
-            // "Verde" = completado
-            // "Rojo" = vencido/problema
-            // Fecha = fecha limite
-            const getCutoffStatus = () => {
-                if (form['Cut off'] === 'Verde') return 'verde';
-                if (form['Cut off'] === 'Rojo') return 'rojo';
-                if (form['Cut off']) return 'fecha';
-                return 'fecha'; // Por defecto mostrar campo de fecha
-            };
-
-            // Logica para Cierre despacho (igual que Cut off)
+            // Logica para Cierre despacho: Verde/Rojo/Fecha
             const getCierreDespachoStatus = () => {
                 if (form['Cierre despacho'] === 'Verde') return 'verde';
                 if (form['Cierre despacho'] === 'Rojo') return 'rojo';
@@ -5094,7 +5083,15 @@
                                             <div className="form-grid-2">
                                                 <div className="form-group">
                                                     <label>Zarpe (ETD)</label>
-                                                    <input type="date" value={formatDateForInput(form['Fecha de embarque'])} onChange={e => set('Fecha de embarque', e.target.value)} />
+                                                    <input type="date" value={formatDateForInput(form['Fecha de embarque'])} onChange={e => {
+                                                        set('Fecha de embarque', e.target.value);
+                                                        // Auto-calcular SI/VGM: 3 días antes de Zarpe
+                                                        if (e.target.value) {
+                                                            const zarpe = new Date(e.target.value + 'T12:00:00');
+                                                            zarpe.setDate(zarpe.getDate() - 3);
+                                                            set('Cut off', zarpe.toISOString().split('T')[0]);
+                                                        }
+                                                    }} />
                                                 </div>
                                                 <div className="form-group">
                                                     <label>Fecha de Arribo (ETA)</label>
@@ -5106,20 +5103,8 @@
                                         <div className="form-section">
                                             <div className="form-section-title"><i data-lucide="Clock" size="16"></i>SI/VGM</div>
                                             <div className="form-group">
-                                                <select value={getCutoffStatus()} onChange={e => {
-                                                    if (e.target.value === 'verde') set('Cut off', 'Verde');
-                                                    else if (e.target.value === 'rojo') set('Cut off', 'Rojo');
-                                                    else set('Cut off', (form['Cut off'] === 'Verde' || form['Cut off'] === 'Rojo') ? '' : form['Cut off']);
-                                                }} style={{ marginBottom: '0.5rem' }}>
-                                                    <option value="fecha">Fecha límite</option>
-                                                    <option value="verde">Verde</option>
-                                                    <option value="rojo">Rojo</option>
-                                                </select>
-                                                {getCutoffStatus() === 'fecha' && (
-                                                    <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
-                                                )}
-                                                {getCutoffStatus() === 'verde' && <div className="verde-badge"><i data-lucide="CheckCircle" size="16"></i>Verde</div>}
-                                                {getCutoffStatus() === 'rojo' && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', color: '#dc2626' }}><i data-lucide="XCircle" size="16"></i>Rojo</div>}
+                                                <label>Fecha SI/VGM (auto: 3 días antes de Zarpe)</label>
+                                                <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
                                             </div>
                                         </div>
 
@@ -5958,7 +5943,7 @@
                                             <td>{r.Contenedores || '-'}</td>
                                             <td>{r.Peso ? formatNumber(r.Peso) : '-'}</td>
                                             <td>{r.Analisis ? formatPercent(r.Analisis) : '-'}</td>
-                                            <td>{r['Cut off'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cut off'] === 'Rojo' ? <span className="badge bg-red">Rojo</span> : r['Cut off'] ? formatDateSpanish(r['Cut off']) : '-'}</td>
+                                            <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Cut off'])}</td>
                                             <td>{r['Cierre despacho'] === 'Verde' ? <span className="badge bg-green">Verde</span> : r['Cierre despacho'] === 'Rojo' ? <span className="badge bg-red">Rojo</span> : r['Cierre despacho'] ? formatDateSpanish(r['Cierre despacho']) : '-'}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de embarque'])}</td>
                                             <td style={{ whiteSpace: 'nowrap' }}>{formatDateSpanish(r['Fecha de arribo'])}</td>
@@ -7480,7 +7465,53 @@
                     // Cargar datos (Supabase primero, localStorage como respaldo)
                     const d = await DatabaseService.getViajes();
                     const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
-                    setData(viajes);
+
+                    // Migración SI/VGM → Cierre Despacho (una sola vez)
+                    const migrationDone = localStorage.getItem('migration_sivgm_cierre_v1');
+                    let finalViajes = viajes;
+
+                    if (!migrationDone) {
+                        let changed = false;
+                        const migratedViajes = viajes.map(v => {
+                            const updated = { ...v };
+                            let thisChanged = false;
+                            // Si Cut off tiene valor y Cierre despacho está vacío, migrar
+                            if (v['Cut off'] && !v['Cierre despacho']) {
+                                updated['Cierre despacho'] = v['Cut off'];
+                                thisChanged = true;
+                            }
+                            // Si Cut off es Verde/Rojo, recalcular como fecha (3 días antes de Zarpe)
+                            if (v['Cut off'] === 'Verde' || v['Cut off'] === 'Rojo') {
+                                if (v['Fecha de embarque']) {
+                                    const zarpe = new Date(v['Fecha de embarque'] + 'T12:00:00');
+                                    zarpe.setDate(zarpe.getDate() - 3);
+                                    updated['Cut off'] = zarpe.toISOString().split('T')[0];
+                                } else {
+                                    updated['Cut off'] = '';
+                                }
+                                thisChanged = true;
+                            }
+                            if (thisChanged) {
+                                changed = true;
+                                updated._needsSave = true;
+                            }
+                            return updated;
+                        });
+
+                        if (changed) {
+                            for (const v of migratedViajes) {
+                                if (v._needsSave) {
+                                    delete v._needsSave;
+                                    await DatabaseService.saveViaje(v);
+                                }
+                            }
+                            console.log('✅ Migración SI/VGM → Cierre Despacho completada');
+                        }
+                        localStorage.setItem('migration_sivgm_cierre_v1', 'true');
+                        finalViajes = migratedViajes;
+                    }
+
+                    setData(finalViajes);
                     // Migración automática de PDFs base64 a Storage (silenciosa, una sola vez)
                     if (!migratingRef.current) {
                         const pendingDocs = await DatabaseService.countDocsToMigrate();
@@ -7559,11 +7590,21 @@
                     }
 
                     if (esNuevo) {
-                        // Auto-calcular Cierre despacho: 3 días antes de Zarpe (solo al crear)
-                        if (toSave['Fecha de embarque'] && !toSave['Cierre despacho']) {
+                        // Auto-calcular fechas desde Zarpe (solo al crear)
+                        if (toSave['Fecha de embarque']) {
                             const zarpe = new Date(toSave['Fecha de embarque'] + 'T12:00:00');
-                            zarpe.setDate(zarpe.getDate() - 3);
-                            toSave['Cierre despacho'] = zarpe.toISOString().split('T')[0];
+                            // SI/VGM: 3 días antes de Zarpe
+                            if (!toSave['Cut off']) {
+                                const sivgm = new Date(zarpe);
+                                sivgm.setDate(sivgm.getDate() - 3);
+                                toSave['Cut off'] = sivgm.toISOString().split('T')[0];
+                            }
+                            // Cierre despacho: 3 días antes de Zarpe
+                            if (!toSave['Cierre despacho']) {
+                                const cierre = new Date(zarpe);
+                                cierre.setDate(cierre.getDate() - 3);
+                                toSave['Cierre despacho'] = cierre.toISOString().split('T')[0];
+                            }
                         }
                         // Viaje nuevo: registrar creación
                         toSave.historial.push(createHistorialEntry('Creado', {}, usuario));
