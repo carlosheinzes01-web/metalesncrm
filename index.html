@@ -7466,8 +7466,8 @@
                     const d = await DatabaseService.getViajes();
                     const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
 
-                    // Migración SI/VGM → Cierre Despacho (una sola vez)
-                    const migrationDone = localStorage.getItem('migration_sivgm_cierre_v1');
+                    // Migración SI/VGM → Cierre Despacho (v2: recalcula TODOS los SI/VGM)
+                    const migrationDone = localStorage.getItem('migration_sivgm_cierre_v2');
                     let finalViajes = viajes;
 
                     if (!migrationDone) {
@@ -7475,21 +7475,20 @@
                         const migratedViajes = viajes.map(v => {
                             const updated = { ...v };
                             let thisChanged = false;
-                            // Si Cut off tiene valor y Cierre despacho está vacío, migrar
+                            // Paso 1: Copiar Cut off → Cierre despacho (si Cierre despacho está vacío)
                             if (v['Cut off'] && !v['Cierre despacho']) {
                                 updated['Cierre despacho'] = v['Cut off'];
                                 thisChanged = true;
                             }
-                            // Si Cut off es Verde/Rojo, recalcular como fecha (3 días antes de Zarpe)
-                            if (v['Cut off'] === 'Verde' || v['Cut off'] === 'Rojo') {
-                                if (v['Fecha de embarque']) {
-                                    const zarpe = new Date(v['Fecha de embarque'] + 'T12:00:00');
-                                    zarpe.setDate(zarpe.getDate() - 3);
-                                    updated['Cut off'] = zarpe.toISOString().split('T')[0];
-                                } else {
-                                    updated['Cut off'] = '';
+                            // Paso 2: Recalcular TODOS los SI/VGM como 3 días antes de Zarpe
+                            if (v['Fecha de embarque']) {
+                                const zarpe = new Date(v['Fecha de embarque'] + 'T12:00:00');
+                                zarpe.setDate(zarpe.getDate() - 3);
+                                const newCutoff = zarpe.toISOString().split('T')[0];
+                                if (updated['Cut off'] !== newCutoff) {
+                                    updated['Cut off'] = newCutoff;
+                                    thisChanged = true;
                                 }
-                                thisChanged = true;
                             }
                             if (thisChanged) {
                                 changed = true;
@@ -7505,9 +7504,9 @@
                                     await DatabaseService.saveViaje(v);
                                 }
                             }
-                            console.log('✅ Migración SI/VGM → Cierre Despacho completada');
+                            console.log('✅ Migración v2 SI/VGM → Cierre Despacho completada');
                         }
-                        localStorage.setItem('migration_sivgm_cierre_v1', 'true');
+                        localStorage.setItem('migration_sivgm_cierre_v2', 'true');
                         finalViajes = migratedViajes;
                     }
 
