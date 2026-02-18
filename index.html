@@ -2822,7 +2822,7 @@
                         }
                     } catch (err) {
                         console.error('❌ Error guardando en Supabase:', err.message, err);
-                        // Continuar para guardar en localStorage como respaldo
+                        return { success: true, synced: false, error: err.message };
                     }
                 }
 
@@ -2837,7 +2837,7 @@
                     console.error('Error en localStorage:', storageErr);
                 }
 
-                return { success: true };
+                return { success: true, synced: true };
             },
 
             // Guardar múltiples viajes
@@ -7386,6 +7386,7 @@
             const [page, setPage] = useState('dashboard');
             const [syncing, setSyncing] = useState(false);
             const [syncMsg, setSyncMsg] = useState('');
+            const [syncFailed, setSyncFailed] = useState(false);
             const [editing, setEditing] = useState(null);
             const [isNew, setIsNew] = useState(false);
             const [showImport, setShowImport] = useState(false);
@@ -7500,15 +7501,9 @@
                         if (changed) {
                             // Limpiar flags temporales
                             migratedViajes.forEach(v => delete v._needsSave);
-                            // Guardar en localStorage primero (siempre funciona)
+                            // SOLO guardar en localStorage (no tocar Supabase para no sobrescribir datos de otros dispositivos)
                             localStorage.setItem('antigravity_crm_data', JSON.stringify(migratedViajes));
-                            // Intentar guardar en Supabase (puede fallar si la columna no existe aún)
-                            try {
-                                await DatabaseService.saveViajesBatch(migratedViajes);
-                                console.log('✅ Migración v2 completada (Supabase + localStorage)');
-                            } catch (e) {
-                                console.warn('⚠️ Migración v2 guardada solo en localStorage (Supabase pendiente):', e.message);
-                            }
+                            console.log('✅ Migración v2 completada (solo localStorage, se sincroniza al editar)');
                         }
                         localStorage.setItem('migration_sivgm_cierre_v2', 'true');
                         finalViajes = migratedViajes;
@@ -7536,11 +7531,42 @@
                 }
             };
 
-            // Polling de respaldo: sincronizar periódicamente por si Realtime falla
+            // Polling de respaldo + auto-sync de cambios locales pendientes
             useEffect(() => {
                 if (appState !== 'app') return;
 
-                const interval = setInterval(() => loadData(), CONFIG.DELAYS.SYNC_INTERVAL);
+                // Auto-sync: subir cambios locales que no llegaron a Supabase
+                const autoSync = async () => {
+                    const sb = getSupabase();
+                    if (!sb) return;
+                    try {
+                        const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                        const { data: remoteData, error } = await sb.from('viajes').select('tripId,lastModified').order('created_at', { ascending: false });
+                        if (error || !remoteData) return;
+
+                        const remoteMap = new Map(remoteData.map(v => [v.tripId, v.lastModified]));
+                        const pendingSync = localData.filter(v => {
+                            if (!v.tripId || !v.lastModified) return false;
+                            const remoteMod = remoteMap.get(v.tripId);
+                            return !remoteMod || new Date(v.lastModified) > new Date(remoteMod);
+                        });
+
+                        if (pendingSync.length > 0) {
+                            const clean = pendingSync.map(cleanDocumentsForSupabase);
+                            const { error: upsertErr } = await sb.from('viajes').upsert(clean, { onConflict: 'tripId' });
+                            if (!upsertErr) {
+                                console.log(`🔄 Auto-sync: ${pendingSync.length} viajes sincronizados a Supabase`);
+                                setSyncFailed(false);
+                            }
+                        }
+                    } catch (e) {
+                        // Silencioso - se reintentará en el próximo ciclo
+                    }
+                };
+
+                // Ejecutar auto-sync al inicio y cada 60 segundos
+                autoSync();
+                const interval = setInterval(() => { loadData(); autoSync(); }, CONFIG.DELAYS.SYNC_INTERVAL);
 
                 return () => clearInterval(interval);
             }, [appState]);
@@ -7651,7 +7677,12 @@
                     }
 
                     setData(prev => { const idx = prev.findIndex(v => v.tripId === toSave.tripId); if (idx >= 0) { const upd = [...prev]; upd[idx] = toSave; return upd; } return [toSave, ...prev]; });
-                    await DatabaseService.saveViaje(toSave);
+                    const saveResult = await DatabaseService.saveViaje(toSave);
+                    if (saveResult && !saveResult.synced) {
+                        setSyncFailed(true);
+                    } else {
+                        setSyncFailed(false);
+                    }
                     setEditing(null); setIsNew(false);
                 } catch (err) {
                     console.error('Error guardando viaje:', err);
@@ -7807,6 +7838,23 @@
                     </div>
                     {editing && <EditViajeModal viaje={editing} onClose={() => { setEditing(null); setIsNew(false); setOriginalViaje(null); setInitialTab('general'); }} onSave={handleSave} onDelete={handleDelete} isNew={isNew} originalViaje={originalViaje} initialTab={initialTab} user={user} />}
                     {showImport && <ImportModal onClose={() => setShowImport(false)} onImport={handleImport} existingData={data} />}
+                    {syncFailed && (
+                        <div style={{
+                            position: 'fixed', bottom: '1rem', left: '50%', transform: 'translateX(-50%)',
+                            background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px',
+                            padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxWidth: '90vw'
+                        }}>
+                            <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                            <span style={{ color: '#92400e', fontWeight: 500 }}>
+                                Guardado solo en este dispositivo. La nube no está sincronizando.
+                            </span>
+                            <button onClick={() => setSyncFailed(false)} style={{
+                                background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem',
+                                color: '#92400e', fontWeight: 700, fontSize: '1rem'
+                            }}>✕</button>
+                        </div>
+                    )}
                     {syncing && <SyncIndicator message={syncMsg} />}
                     {/* Botón flotante para agregar en móvil */}
                     <button className="mobile-fab" onClick={openNew} title="Nuevo viaje">
