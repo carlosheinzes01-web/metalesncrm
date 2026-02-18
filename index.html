@@ -7498,13 +7498,17 @@
                         });
 
                         if (changed) {
-                            for (const v of migratedViajes) {
-                                if (v._needsSave) {
-                                    delete v._needsSave;
-                                    await DatabaseService.saveViaje(v);
-                                }
+                            // Limpiar flags temporales
+                            migratedViajes.forEach(v => delete v._needsSave);
+                            // Guardar en localStorage primero (siempre funciona)
+                            localStorage.setItem('antigravity_crm_data', JSON.stringify(migratedViajes));
+                            // Intentar guardar en Supabase (puede fallar si la columna no existe aún)
+                            try {
+                                await DatabaseService.saveViajesBatch(migratedViajes);
+                                console.log('✅ Migración v2 completada (Supabase + localStorage)');
+                            } catch (e) {
+                                console.warn('⚠️ Migración v2 guardada solo en localStorage (Supabase pendiente):', e.message);
                             }
-                            console.log('✅ Migración v2 SI/VGM → Cierre Despacho completada');
                         }
                         localStorage.setItem('migration_sivgm_cierre_v2', 'true');
                         finalViajes = migratedViajes;
