@@ -1752,6 +1752,17 @@
         // Alias para compatibilidad (getter dinámico)
         Object.defineProperty(window, 'supabaseClient', { get: getSupabase });
 
+        // Safe JSON parse para localStorage (evita crash si datos corruptos)
+        const safeParseLocal = (key, fallback = []) => {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch (err) {
+                console.warn('⚠️ localStorage corrupto para', key, '- usando fallback:', err.message);
+                return fallback;
+            }
+        };
+
         // =====================================================
         // DATOS INICIALES - 54 viajes pre-cargados
         // Se usan solo si no hay datos en localStorage/Supabase
@@ -2771,21 +2782,19 @@
 
                 // Si no hay Supabase, usar localStorage
                 if (!sb) {
-                    const saved = localStorage.getItem('antigravity_crm_data');
-                    viajes = saved ? JSON.parse(saved) : [];
+                    viajes = safeParseLocal('antigravity_crm_data');
                 } else {
                     try {
                         const { data, error } = await sb.from('viajes').select('*').order('created_at', { ascending: false });
                         if (error) throw error;
 
                         // Merge inteligente: conservar cambios locales más recientes
-                        const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                        const localData = safeParseLocal('antigravity_crm_data');
                         viajes = mergeByTimestamp(localData, data || []);
                         localStorage.setItem('antigravity_crm_data', JSON.stringify(viajes));
                     } catch (err) {
                         console.error('❌ Error Supabase, usando localStorage:', err.message);
-                        const saved = localStorage.getItem('antigravity_crm_data');
-                        viajes = saved ? JSON.parse(saved) : [];
+                        viajes = safeParseLocal('antigravity_crm_data');
                     }
                 }
 
@@ -2828,7 +2837,7 @@
 
                 // Guardar también en localStorage como respaldo
                 try {
-                    const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                    const localData = safeParseLocal('antigravity_crm_data');
                     const idx = localData.findIndex(v => v.tripId === viajeParaGuardar.tripId);
                     if (idx >= 0) localData[idx] = viajeParaGuardar;
                     else localData.unshift(viajeParaGuardar);
@@ -2873,7 +2882,7 @@
                     }
                 }
 
-                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                const localData = safeParseLocal('antigravity_crm_data');
                 localStorage.setItem('antigravity_crm_data', JSON.stringify(localData.filter(v => v.tripId !== tripId)));
                 return { success: true };
             },
@@ -2886,7 +2895,7 @@
                     return { success: false, error: 'Supabase no disponible. Verifica tu conexión a internet y recarga la página.' };
                 }
 
-                const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                const localData = safeParseLocal('antigravity_crm_data');
                 if (localData.length === 0) {
                     return { success: true, count: 0, message: 'No hay datos para migrar' };
                 }
@@ -3086,7 +3095,7 @@
 
         // =====================================================
         // =====================================================
-        // SUPABASE AUTH SERVICE (no usado actualmente)
+        // SUPABASE AUTH SERVICE
         // =====================================================
         const SupabaseAuthService = {
             async getCurrentUser() {
@@ -3325,23 +3334,28 @@
                 return;
             }
 
+            // Sanitizar texto para evitar XSS al insertar en HTML
+            const escapeHtml = (str) => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
             // Si es URL de Supabase Storage, abrir directo
             if (url.startsWith('http')) {
                 // Crear ventana con visor de PDF
                 const newWindow = window.open('', '_blank');
                 if (newWindow) {
+                    const safeTitle = escapeHtml(doc.fileName || 'Documento PDF');
+                    const safeUrl = encodeURI(url);
                     newWindow.document.write(`
                         <!DOCTYPE html>
                         <html>
                         <head>
-                            <title>${doc.fileName || 'Documento PDF'}</title>
+                            <title>${safeTitle}</title>
                             <style>
                                 body { margin: 0; padding: 0; background: #525659; }
                                 iframe { width: 100%; height: 100vh; border: none; }
                             </style>
                         </head>
                         <body>
-                            <iframe src="${url}" type="application/pdf"></iframe>
+                            <iframe src="${safeUrl}" type="application/pdf"></iframe>
                         </body>
                         </html>
                     `);
@@ -6142,8 +6156,14 @@
         };
 
         const extractTextFromPDF = async (file) => {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let arrayBuffer, pdf;
+            try {
+                arrayBuffer = await file.arrayBuffer();
+                pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            } catch (err) {
+                console.error('Error leyendo PDF:', err);
+                throw new Error('No se pudo leer el archivo PDF. Verifica que no esté corrupto.');
+            }
 
             // Solo pagina 1 para booking
             const page = await pdf.getPage(1);
@@ -7540,7 +7560,7 @@
                     const sb = getSupabase();
                     if (!sb) return;
                     try {
-                        const localData = JSON.parse(localStorage.getItem('antigravity_crm_data') || '[]');
+                        const localData = safeParseLocal('antigravity_crm_data');
                         const { data: remoteData, error } = await sb.from('viajes').select('tripId,lastModified').order('created_at', { ascending: false });
                         if (error || !remoteData) return;
 
@@ -7601,6 +7621,7 @@
 
 
             const handleSave = async (viaje) => {
+                if (syncing) return; // Prevenir guardados concurrentes
                 setSyncing(true); setSyncMsg('Guardando...');
                 try {
                     const tripId = viaje.tripId || generateUUID();
@@ -7654,18 +7675,22 @@
                             setSyncMsg('Subiendo documento...');
                             if (getSupabase()) {
                                 const result = await StorageService.uploadFile(file, toSave.tripId, docType);
-                                const docs = toSave.documentos || createEmptyDocumentos();
-                                docs[docType] = {
-                                    uploaded: true,
-                                    fileName: file.name,
-                                    uploadDate: new Date().toISOString(),
-                                    storagePath: result.path,
-                                    storageUrl: result.url
-                                };
-                                toSave.documentos = docs;
-                                // Registrar subida de documento en historial
-                                const docLabel = DOCUMENT_TYPES.find(d => d.id === docType)?.label || docType;
-                                toSave.historial.push(createHistorialEntry('Documento subido', { [docLabel]: { antes: '', despues: file.name } }, usuario));
+                                if (result && result.path && result.url) {
+                                    const docs = toSave.documentos || createEmptyDocumentos();
+                                    docs[docType] = {
+                                        uploaded: true,
+                                        fileName: file.name,
+                                        uploadDate: new Date().toISOString(),
+                                        storagePath: result.path,
+                                        storageUrl: result.url
+                                    };
+                                    toSave.documentos = docs;
+                                    // Registrar subida de documento en historial
+                                    const docLabel = DOCUMENT_TYPES.find(d => d.id === docType)?.label || docType;
+                                    toSave.historial.push(createHistorialEntry('Documento subido', { [docLabel]: { antes: '', despues: file.name } }, usuario));
+                                } else {
+                                    console.error('Upload devolvió resultado incompleto:', result);
+                                }
                             }
                         } catch (err) {
                             console.error('Error subiendo PDF a documentos:', err);
@@ -7731,7 +7756,6 @@
 
             // Estado de conexión
             const [lastAutoBackup, setLastAutoBackup] = useState(() => localStorage.getItem('antigravity_last_auto_backup') || null);
-            const [realtimeConnected, setRealtimeConnected] = useState(false);
             const [supabaseConnected, setSupabaseConnected] = useState(false);
 
             // =====================================================
