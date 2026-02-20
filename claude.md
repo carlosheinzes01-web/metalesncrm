@@ -333,6 +333,55 @@ viaje.anticipoPagado = true // o false
 
 ---
 
+### 2026-02-20 - Auditoría completa + Fix de fechas
+
+#### 🔴 Corrección Crítica
+
+**28. Fix fechas invertidas en extracción de Booking PDF**
+- **Problema:** Las fechas se extraían con día y mes al revés (asumía MM/DD/YYYY americano)
+- **Causa:** `convertEnglishDateToISO` asumía formato americano, pero navieras usan DD/MM/YYYY
+- **Solución:** Renombrada a `convertDateToISO`, ahora asume DD/MM/YYYY por defecto
+- **Efecto:** También corrige el nombre del viaje (ZN DD-MM-YY) que se generaba mal
+
+#### 🟠 Bugs encontrados en auditoría
+
+**29. Búsqueda expandida a más campos**
+- **Antes:** Solo buscaba en Nombre, Booking y BL
+- **Ahora:** También busca en Cliente, Proveedor, Destino, Origen y Producto
+
+**30. Excel Import preserva historial y createdAt**
+- **Problema:** Importar Excel sobre viajes existentes sobreescribía historial de cambios
+- **Solución:** Se preservan `historial`, `documentos` y `createdAt` al actualizar
+
+**31. Export Excel incluye campos faltantes**
+- **Agregados a EXPORT_COLUMNS:** `SI`, `anticipoPagado`, `fechaAnticipoPagado`
+
+**32. SortHeader movido fuera de ViajesPage**
+- **Problema:** Componente definido dentro de otro (anti-patrón React, causaba re-mount)
+- **Solución:** Movido como componente externo con props `sortConfig` y `onSort`
+
+**33. ESC listener optimizado con useRef**
+- **Problema:** useEffect con deps `[form, viaje]` re-registraba listener en cada tecla
+- **Solución:** useRef para handleClose + dependency array vacía `[]`
+
+**34. detectChanges corregido para campos numéricos**
+- **Problema:** `0` vs `''` generaba falso positivo en historial de cambios
+- **Solución:** Campos numéricos se comparan como números (0 === '' → sin cambio)
+
+**35. Historial null check robusto**
+- **Antes:** `if (!toSave.historial)` — no cubre caso `null`
+- **Ahora:** `if (!Array.isArray(toSave.historial))` — cubre null, undefined, string, etc.
+
+**36. Validación de negativos en campos físicos**
+- **Campos afectados:** Contenedores, Peso, Análisis
+- **Cambio:** No se permiten valores negativos, muestra error "No se permiten negativos"
+
+**37. Redondeo financiero al guardar**
+- **Campos:** Flete, $venta, $deben, 10%, Anticipos, Agencia aduanal
+- **Cambio:** Se redondean a 2 decimales antes de guardar para evitar errores de punto flotante
+
+---
+
 ## Pendientes / Mejoras Futuras
 
 1. ~~**Validación de datos**~~ ✅ Implementado 2026-01-27

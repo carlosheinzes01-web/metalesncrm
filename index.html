@@ -3486,9 +3486,9 @@
         // IMPORTANTE: Incluye TODOS los campos del formulario
         const EXPORT_COLUMNS = [
             'tripId', 'Nombre', 'Numero de booking', 'Numero de BL', 'Fecha',
-            'Fecha de embarque', 'Fecha de arribo', 'Status', 'Cut off', 'Cierre despacho',
+            'Fecha de embarque', 'Fecha de arribo', 'Status', 'SI', 'Cut off', 'Cierre despacho',
             'Contenedores', 'Peso', 'Analisis', 'Flete', 'Numero de factura',
-            '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal',
+            '$venta', '$deben', '10%', 'Anticipos', 'anticipoPagado', 'fechaAnticipoPagado', 'Agencia aduanal',
             'Origen', 'Destino', 'Cliente', 'Proveedor', 'Producto', 'Notas'
         ];
 
@@ -3682,11 +3682,20 @@
                     };
 
                     if (matchIdx >= 0) {
-                        // Actualizar existente - preservar documentos si existen
-                        const existingDocs = results.data[matchIdx].documentos;
-                        results.data[matchIdx] = { ...results.data[matchIdx], ...viaje };
+                        // Actualizar existente - preservar documentos, historial y createdAt
+                        const existing = results.data[matchIdx];
+                        const existingDocs = existing.documentos;
+                        const existingHistorial = existing.historial;
+                        const existingCreatedAt = existing.createdAt;
+                        results.data[matchIdx] = { ...existing, ...viaje };
                         if (existingDocs) {
                             results.data[matchIdx].documentos = existingDocs;
+                        }
+                        if (existingHistorial) {
+                            results.data[matchIdx].historial = existingHistorial;
+                        }
+                        if (existingCreatedAt) {
+                            results.data[matchIdx].createdAt = existingCreatedAt;
                         }
                         results.actualizados++;
                     } else {
@@ -4778,14 +4787,19 @@
         // Campos que solo aceptan enteros
         const INTEGER_FIELDS = ['Contenedores'];
 
+        // Campos que no aceptan valores negativos (cantidades físicas)
+        const NO_NEGATIVE_FIELDS = ['Contenedores', 'Peso', 'Analisis'];
+
         // Validar si un valor es numérico válido
-        const isValidNumeric = (value, isInteger = false) => {
+        const isValidNumeric = (value, isInteger = false, noNegative = false) => {
             if (value === '' || value === null || value === undefined) return true; // Vacío es válido
             const str = String(value).trim();
             if (str === '') return true;
 
             // Permitir números con comas como separador de miles (ej: 1,234.56)
             const cleanValue = str.replace(/,/g, '');
+
+            if (noNegative && cleanValue.startsWith('-')) return false;
 
             if (isInteger) {
                 return /^-?\d+$/.test(cleanValue);
@@ -4828,11 +4842,19 @@
             TRACKED_FIELDS.forEach(field => {
                 const valorAntes = original[field] ?? '';
                 const valorDespues = modified[field] ?? '';
-                // Convertir a string para comparar
-                const antes = String(valorAntes).trim();
-                const despues = String(valorDespues).trim();
-                if (antes !== despues) {
-                    cambios[field] = { antes, despues };
+                // Para campos numéricos, normalizar: 0, '', null, undefined son equivalentes
+                if (NUMERIC_FIELDS.includes(field)) {
+                    const numAntes = Number(valorAntes) || 0;
+                    const numDespues = Number(valorDespues) || 0;
+                    if (numAntes !== numDespues) {
+                        cambios[field] = { antes: String(valorAntes).trim(), despues: String(valorDespues).trim() };
+                    }
+                } else {
+                    const antes = String(valorAntes).trim();
+                    const despues = String(valorDespues).trim();
+                    if (antes !== despues) {
+                        cambios[field] = { antes, despues };
+                    }
                 }
             });
             return cambios;
@@ -4908,10 +4930,12 @@
                 // Validar campos numéricos (solo mostrar error, no modificar valor)
                 if (isNumericField(field)) {
                     const isInteger = isIntegerField(field);
+                    const noNegative = NO_NEGATIVE_FIELDS.includes(field);
 
                     // Validar y mostrar error si hay caracteres no numéricos
-                    if (value !== '' && !isValidNumeric(value, isInteger)) {
-                        setErrors(prev => ({ ...prev, [field]: isInteger ? 'Solo numeros enteros' : 'Solo numeros' }));
+                    if (value !== '' && !isValidNumeric(value, isInteger, noNegative)) {
+                        const msg = noNegative && String(value).includes('-') ? 'No se permiten negativos' : (isInteger ? 'Solo numeros enteros' : 'Solo numeros');
+                        setErrors(prev => ({ ...prev, [field]: msg }));
                     } else {
                         setErrors(prev => {
                             const newErrors = { ...prev };
@@ -4959,16 +4983,18 @@
                 }
             };
 
-            // Tecla ESC cierra el modal
+            // Tecla ESC cierra el modal (useRef evita re-registrar listener en cada cambio)
+            const handleCloseRef = useRef(handleClose);
+            handleCloseRef.current = handleClose;
             useEffect(() => {
                 const handleEsc = (e) => {
                     if (e.key === 'Escape') {
-                        handleClose();
+                        handleCloseRef.current();
                     }
                 };
                 document.addEventListener('keydown', handleEsc);
                 return () => document.removeEventListener('keydown', handleEsc);
-            }, [form, viaje]); // Dependencias para que handleClose tenga los valores actuales
+            }, []);
 
             const handleSubmit = (e) => {
                 e.preventDefault();
@@ -5515,6 +5541,23 @@
             );
         });
 
+        // SortHeader fuera de ViajesPage para evitar re-mount en cada render
+        const SortHeader = ({ col, index, sortConfig, onSort }) => {
+            const stickyClass = index === 0 ? 'sticky-col-1' : index === 1 ? 'sticky-col-2' : '';
+            return (
+                <th onClick={() => onSort(col.key)} className={stickyClass} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        {col.label}
+                        {sortConfig.key === col.key ? (
+                            <i data-lucide={sortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} size="14" color="var(--primary)"></i>
+                        ) : (
+                            <i data-lucide="ChevronsUpDown" size="14" color="#cbd5e1"></i>
+                        )}
+                    </div>
+                </th>
+            );
+        };
+
         const ViajesPage = React.memo(({ data, onEdit, onEditDocs, onDelete, onAdd, onExport, onImport, user, loading }) => {
             const [searchInput, setSearchInput] = useState(''); // Valor inmediato del input
             const [search, setSearch] = useState(''); // Valor con debounce para filtrar
@@ -5580,7 +5623,8 @@
 
             const sorted = useMemo(() => {
                 const filtered = data.filter(v => {
-                    const matchSearch = !search || (v.Nombre || '').toLowerCase().includes(search.toLowerCase()) || (v['Numero de booking'] || '').toLowerCase().includes(search.toLowerCase()) || (v['Numero de BL'] || '').toLowerCase().includes(search.toLowerCase());
+                    const s = search.toLowerCase();
+                    const matchSearch = !search || (v.Nombre || '').toLowerCase().includes(s) || (v['Numero de booking'] || '').toLowerCase().includes(s) || (v['Numero de BL'] || '').toLowerCase().includes(s) || (v.Cliente || '').toLowerCase().includes(s) || (v.Proveedor || '').toLowerCase().includes(s) || (v.Destino || '').toLowerCase().includes(s) || (v.Origen || '').toLowerCase().includes(s) || (v.Producto || '').toLowerCase().includes(s);
                     const matchStatus = filterStatus.length === 0 || filterStatus.includes(v.Status);
                     return matchSearch && matchStatus;
                 });
@@ -5610,21 +5654,7 @@
             const statuses = useMemo(() => [...new Set(data.map(v => v.Status).filter(Boolean))], [data]);
             useEffect(() => { lucide.createIcons(); }, [sorted, sortConfig, showStatusDropdown, filterStatus]);
 
-            const SortHeader = ({ col, index }) => {
-                const stickyClass = index === 0 ? 'sticky-col-1' : index === 1 ? 'sticky-col-2' : '';
-                return (
-                    <th onClick={() => handleSort(col.key)} className={stickyClass} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            {col.label}
-                            {sortConfig.key === col.key ? (
-                                <i data-lucide={sortConfig.direction === 'asc' ? 'ChevronUp' : 'ChevronDown'} size="14" color="var(--primary)"></i>
-                            ) : (
-                                <i data-lucide="ChevronsUpDown" size="14" color="#cbd5e1"></i>
-                            )}
-                        </div>
-                    </th>
-                );
-            };
+            // SortHeader ahora es externo - se usa con props sortConfig y onSort
 
             // Mostrar skeleton mientras carga
             if (loading) {
@@ -5916,7 +5946,7 @@
                             <table style={{ fontSize: '0.75rem' }}>
                                 <thead>
                                     <tr>
-                                        {columns.map((col, idx) => <SortHeader key={col.key} col={col} index={idx} />)}
+                                        {columns.map((col, idx) => <SortHeader key={col.key} col={col} index={idx} sortConfig={sortConfig} onSort={handleSort} />)}
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -6470,28 +6500,29 @@
                 result.flete = fleteTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
-            // Convertir fechas de formato inglés (MM/DD/YYYY) a ISO (YYYY-MM-DD)
-            const convertEnglishDateToISO = (dateStr) => {
+            // Convertir fechas a ISO (YYYY-MM-DD)
+            // Documentos de navieras usan DD/MM/YYYY (formato internacional)
+            const convertDateToISO = (dateStr) => {
                 if (!dateStr) return dateStr;
                 const match = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
                 if (!match) return dateStr;
                 let part1 = parseInt(match[1]);
                 let part2 = parseInt(match[2]);
                 let year = match[3].length === 2 ? '20' + match[3] : match[3];
-                // PDF en inglés: part1=mes, part2=día
-                // Si part1 > 12, entonces part1 es día (ya está en DD/MM)
                 let month, day;
-                if (part1 > 12) {
-                    day = String(part1).padStart(2, '0');
-                    month = String(part2).padStart(2, '0');
-                } else {
+                if (part2 > 12) {
+                    // part2 no puede ser mes, entonces es MM/DD/YYYY
                     month = String(part1).padStart(2, '0');
                     day = String(part2).padStart(2, '0');
+                } else {
+                    // Default: DD/MM/YYYY (formato internacional de navieras)
+                    day = String(part1).padStart(2, '0');
+                    month = String(part2).padStart(2, '0');
                 }
                 return `${year}-${month}-${day}`;
             };
-            result.fecha = convertEnglishDateToISO(result.fecha);
-            result['Cut Off'] = convertEnglishDateToISO(result['Cut Off']);
+            result.fecha = convertDateToISO(result.fecha);
+            result['Cut Off'] = convertDateToISO(result['Cut Off']);
 
             return result;
         };
@@ -7628,14 +7659,24 @@
                     const usuario = user?.email || 'local';
                     const toSave = { ...viaje, tripId, lastModified: new Date().toISOString(), modifiedBy: usuario, user_id: user?.id || null };
 
+                    // Redondear campos financieros a 2 decimales
+                    ['Flete', '$venta', '$deben', '10%', 'Anticipos', 'Agencia aduanal'].forEach(field => {
+                        if (toSave[field] !== '' && toSave[field] !== null && toSave[field] !== undefined) {
+                            const num = Number(String(toSave[field]).replace(/,/g, ''));
+                            if (!isNaN(num) && num !== 0) {
+                                toSave[field] = Math.round(num * 100) / 100;
+                            }
+                        }
+                    });
+
                     // =====================================================
                     // HISTORIAL DE CAMBIOS
                     // =====================================================
                     const originalViaje = data.find(v => v.tripId === tripId);
                     const esNuevo = !originalViaje;
 
-                    // Inicializar historial si no existe
-                    if (!toSave.historial) {
+                    // Inicializar historial si no existe o está corrupto
+                    if (!Array.isArray(toSave.historial)) {
                         toSave.historial = [];
                     }
 
