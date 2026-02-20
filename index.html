@@ -7048,8 +7048,14 @@
                                     <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                                         <ResultField label="Booking #" value={editedBooking.booking} />
                                         <ResultField label="Contenedores" value={editedBooking.contenedores} />
-                                        <ResultField label="SI/VGM" value={editedBooking['Cut Off'] ? editedBooking['Cut Off'].replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1') : '-'} />
-                                        <ResultField label="Fecha" value={editedBooking.fecha ? editedBooking.fecha.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1') : '-'} />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>SI/VGM</span>
+                                            <input type="date" value={editedBooking['Cut Off'] || ''} onChange={(e) => setEditedBooking(prev => ({ ...prev, 'Cut Off': e.target.value }))} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem', background: 'var(--surface)', color: 'var(--text)' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Fecha</span>
+                                            <input type="date" value={editedBooking.fecha || ''} onChange={(e) => setEditedBooking(prev => ({ ...prev, fecha: e.target.value }))} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.4rem', fontSize: '0.8125rem', background: 'var(--surface)', color: 'var(--text)' }} />
+                                        </div>
                                         <ResultField label="Flete (USD)" value={editedBooking.flete ? `$${editedBooking.flete}` : '-'} />
                                     </div>
 
