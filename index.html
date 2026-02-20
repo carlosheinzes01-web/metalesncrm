@@ -6759,19 +6759,21 @@
 
                 // Intentar parsear diferentes formatos de fecha
                 if (fechaStr) {
-                    // Formato DD/MM/YYYY o DD-MM-YYYY
-                    const match1 = fechaStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-                    if (match1) {
-                        day = match1[1].padStart(2, '0');
-                        month = match1[2].padStart(2, '0');
-                        year = match1[3].length === 4 ? match1[3].slice(-2) : match1[3];
+                    // Primero: Formato YYYY-MM-DD (ISO, viene de convertDateToISO)
+                    const matchISO = fechaStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+                    if (matchISO) {
+                        day = matchISO[3].padStart(2, '0');
+                        month = matchISO[2].padStart(2, '0');
+                        year = matchISO[1].slice(-2);
                     }
-                    // Formato YYYY-MM-DD
-                    const match2 = fechaStr.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-                    if (!match1 && match2) {
-                        day = match2[3].padStart(2, '0');
-                        month = match2[2].padStart(2, '0');
-                        year = match2[1].slice(-2);
+                    // Fallback: Formato DD/MM/YYYY o DD-MM-YYYY
+                    if (!matchISO) {
+                        const matchDMY = fechaStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+                        if (matchDMY) {
+                            day = matchDMY[1].padStart(2, '0');
+                            month = matchDMY[2].padStart(2, '0');
+                            year = matchDMY[3].length === 4 ? matchDMY[3].slice(-2) : matchDMY[3];
+                        }
                     }
                 }
 
@@ -7046,8 +7048,8 @@
                                     <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
                                         <ResultField label="Booking #" value={editedBooking.booking} />
                                         <ResultField label="Contenedores" value={editedBooking.contenedores} />
-                                        <ResultField label="SI/VGM" value={editedBooking['Cut Off']} />
-                                        <ResultField label="Fecha" value={editedBooking.fecha} />
+                                        <ResultField label="SI/VGM" value={editedBooking['Cut Off'] ? editedBooking['Cut Off'].replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1') : '-'} />
+                                        <ResultField label="Fecha" value={editedBooking.fecha ? editedBooking.fecha.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1') : '-'} />
                                         <ResultField label="Flete (USD)" value={editedBooking.flete ? `$${editedBooking.flete}` : '-'} />
                                     </div>
 
