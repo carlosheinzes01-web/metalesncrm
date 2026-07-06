@@ -9,20 +9,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
 
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@8.0.3/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2.110.0/dist/umd/supabase.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/airbnb.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://unpkg.com/flatpickr@4.6.13/dist/l10n/es.js"></script>
 
     <style>
         :root {
@@ -5304,25 +5304,27 @@
                                                         tripName={form.Nombre}
                                                         documentos={form.documentos}
                                                         onUpdate={(newDocs, docTypeId, action, fileName) => {
-                                                            // Actualizar estado local
-                                                            const updatedForm = { ...form, documentos: newDocs };
+                                                            // Fusionar SOLO el documento que cambió sobre el estado más reciente
+                                                            // (evita que subir varios documentos seguidos se pisen entre sí)
+                                                            setForm(prev => {
+                                                                const mergedDocs = { ...(prev.documentos || {}) };
+                                                                if (docTypeId) mergedDocs[docTypeId] = newDocs[docTypeId];
 
-                                                            // Agregar al historial si se subio o elimino un documento
-                                                            if (docTypeId && action) {
-                                                                const docLabel = DOCUMENT_TYPES.find(d => d.id === docTypeId)?.label || docTypeId;
-                                                                const historial = updatedForm.historial || [];
-                                                                const usuario = 'local'; // Se actualizara en handleSave
-                                                                if (action === 'upload') {
-                                                                    historial.push(createHistorialEntry('Documento subido', { [docLabel]: { antes: '', despues: fileName || 'archivo' } }, usuario));
-                                                                } else if (action === 'delete') {
-                                                                    historial.push(createHistorialEntry('Documento eliminado', { [docLabel]: { antes: fileName || 'archivo', despues: '' } }, usuario));
+                                                                const historial = Array.isArray(prev.historial) ? [...prev.historial] : [];
+                                                                if (docTypeId && action) {
+                                                                    const docLabel = DOCUMENT_TYPES.find(d => d.id === docTypeId)?.label || docTypeId;
+                                                                    if (action === 'upload') {
+                                                                        historial.push(createHistorialEntry('Documento subido', { [docLabel]: { antes: '', despues: fileName || 'archivo' } }, 'local'));
+                                                                    } else if (action === 'delete') {
+                                                                        historial.push(createHistorialEntry('Documento eliminado', { [docLabel]: { antes: fileName || 'archivo', despues: '' } }, 'local'));
+                                                                    }
                                                                 }
-                                                                updatedForm.historial = historial;
-                                                            }
 
-                                                            setForm(updatedForm);
-                                                            // Guardar automáticamente el viaje
-                                                            onSave(updatedForm);
+                                                                const updatedForm = { ...prev, documentos: mergedDocs, historial };
+                                                                // Guardar fuera del render (microtarea); handleSave encola si hay otro en curso
+                                                                Promise.resolve().then(() => onSave(updatedForm));
+                                                                return updatedForm;
+                                                            });
                                                         }}
                                                     />
                                                 ))}
@@ -7462,6 +7464,9 @@
             const [migrating, setMigrating] = useState(false);
             // Referencia para evitar migraciones concurrentes de PDFs
             const migratingRef = useRef(false);
+            // Guardado en curso: si llega otro, se encola (evita perder documentos al subir varios seguidos)
+            const savingRef = useRef(false);
+            const savePendingRef = useRef(null);
             // Inicializar con el mes en curso
             const [startDate, setStartDate] = useState(() => {
                 const now = new Date();
@@ -7668,7 +7673,10 @@
 
 
             const handleSave = async (viaje) => {
-                if (syncing) return; // Prevenir guardados concurrentes
+                // Si ya hay un guardado en curso, encolar el más reciente en vez de descartarlo
+                // (así, al subir varios documentos seguidos, ninguno se pierde)
+                if (savingRef.current) { savePendingRef.current = viaje; return; }
+                savingRef.current = true;
                 setSyncing(true); setSyncMsg('Guardando...');
                 try {
                     const tripId = viaje.tripId || generateUUID();
@@ -7771,6 +7779,13 @@
                     alert('❌ Error al guardar: ' + err.message + '\n\nEl viaje no se guardó correctamente.');
                 } finally {
                     setSyncing(false);
+                    savingRef.current = false;
+                    // Si llegó un guardado mientras trabajábamos, ejecutarlo ahora
+                    if (savePendingRef.current) {
+                        const next = savePendingRef.current;
+                        savePendingRef.current = null;
+                        handleSave(next);
+                    }
                 }
             };
 
