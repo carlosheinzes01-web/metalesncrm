@@ -5101,8 +5101,13 @@
                                                 <FieldWithChange label="Peso (toneladas)" field="Peso" {...fieldProps}>
                                                     <input type="text" inputMode="decimal" value={form.Peso || ''} onChange={e => set('Peso', e.target.value)} placeholder="Ej: 25.5" />
                                                 </FieldWithChange>
-                                                <FieldWithChange label="Análisis (%)" field="Analisis" {...fieldProps}>
-                                                    <input type="text" inputMode="decimal" value={form.Analisis || ''} onChange={e => set('Analisis', e.target.value)} placeholder="Ej: 15.5" />
+                                                <FieldWithChange label="Análisis (decimal, ej. 0.28 = 28%)" field="Analisis" {...fieldProps}>
+                                                    <input type="text" inputMode="decimal" value={form.Analisis || ''} onChange={e => set('Analisis', e.target.value)} placeholder="Ej: 0.28" />
+                                                    {String(form.Analisis ?? '').trim() !== '' && !isNaN(Number(form.Analisis)) && (
+                                                        <div className="form-hint" style={{ color: Number(form.Analisis) > 1 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                                                            = {(Number(form.Analisis) * 100).toFixed(2)}%{Number(form.Analisis) > 1 ? ' ⚠️ muy alto, ¿faltó el "0."?' : ''}
+                                                        </div>
+                                                    )}
                                                 </FieldWithChange>
                                             </div>
                                         </div>
@@ -5863,7 +5868,7 @@
                                             <div className="mobile-card-row">
                                                 <span className="mobile-card-label">Peso</span>
                                                 <span className={`mobile-card-value ${!r.Peso ? 'empty' : ''}`}>
-                                                    {r.Peso ? formatNumber(r.Peso) + ' kg' : '—'}
+                                                    {r.Peso ? formatNumber(r.Peso) + ' t' : '—'}
                                                 </span>
                                             </div>
                                         </div>
