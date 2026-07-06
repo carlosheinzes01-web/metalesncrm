@@ -1,0 +1,31 @@
+# Mantiene el proyecto de Supabase despierto para que NO se pause por inactividad.
+# Supabase (plan gratuito) pausa proyectos tras ~7 dias sin actividad.
+# Este workflow hace una peticion ligera Lun / Mie / Vie (gap maximo 3 dias).
+# La anon key es publica por diseno (ya esta en index.html), no es un secreto.
+name: Keep Supabase Awake
+
+on:
+  schedule:
+    - cron: '0 12 * * 1,3,5'   # Lunes, Miercoles y Viernes a las 12:00 UTC
+  workflow_dispatch:            # Permite ejecutarlo a mano desde la pestana "Actions"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (REST)
+        env:
+          SUPABASE_URL: https://cteczvfjnkhipbvbwlmx.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN0ZWN6dmZqbmtoaXBidmJ3bG14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwODk1NDQsImV4cCI6MjA4NDY2NTU0NH0.sWGm3uRwQv3eioPZFPtkb2GaTvHoRBsZFx44OYzIIrY
+        run: |
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "$SUPABASE_URL/rest/v1/viajes?select=tripId&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Respuesta HTTP de Supabase: $CODE"
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
+            echo "OK - Supabase esta activo."
+          else
+            echo "ADVERTENCIA - Supabase respondio $CODE (revisar el proyecto)."
+            exit 1
+          fi

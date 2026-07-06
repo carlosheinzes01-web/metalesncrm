@@ -3,3 +3,6 @@
 *.zip
 import_data.json
 import_ready.json
+
+# Respaldos locales con datos del negocio (no subir a GitHub)
+respaldo_*.json
