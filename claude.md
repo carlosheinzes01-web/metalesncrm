@@ -414,6 +414,27 @@ viaje.anticipoPagado = true // o false
 - **Auto-filtro:** Se agregó `ws['!autofilter'] = { ref: ws['!ref'] }` en `ExcelService.export` — el Excel abre con botones de filtro/orden en los encabezados.
 - **Descartado:** Encabezados "legibles" en el export. `processImport` (~3630) lee los encabezados del Excel como nombres de campo (`row['$venta']`, etc.) sin traducción inversa; renombrarlos rompería la re-importación. Requeriría un diccionario encabezado-legible → clave-interna. Congelar la fila de encabezados tampoco es viable: SheetJS community no escribe `!freeze`.
 
+### 2026-07-08 - Auditoría completa + fix de 3 bugs de datos
+
+#### 🔴 Corrección Crítica
+
+**41. Fix importación que corrompía viajes (`processImport`)**
+- **Problema:** `results.data.unshift(viaje)` para viajes nuevos desplazaba +1 todos los índices, pero los mapas de match (`blMap`/`bookingMap`/`nombreMap`) guardaban los índices viejos → una fila posterior que hacía match sobrescribía el viaje EQUIVOCADO. Corrompía datos al importar Excel con filas nuevas (arriba) + actualizaciones mezcladas.
+- **Solución:** `push` en vez de `unshift`, `newIdx = results.data.length - 1`. El orden no importa (la tabla reordena por Fecha). Verificado con repro del caso exacto.
+
+**42. Fix `saveViaje` no respaldaba local si Supabase fallaba**
+- **Problema:** En el catch de Supabase hacía `return` ANTES del bloque localStorage → la edición se perdía al recargar y no se reintentaba.
+- **Solución:** Reordenado para guardar en localStorage PRIMERO (respaldo), luego sincronizar. `autoSync` ahora reintenta de forma fiable.
+
+**43. Fix borrados que "revivían" entre dispositivos (borrado suave)**
+- **Problema:** Sin tombstone. Al borrar en el dispositivo A, el dispositivo B (que aún tenía el viaje en localStorage) lo resucitaba en `mergeByTimestamp` y lo re-subía en `autoSync`.
+- **Solución:** Borrado suave. Migración SQL: `ALTER TABLE viajes ADD COLUMN deleted boolean DEFAULT false` (aplicada 2026-07-08 vía Management API). `deleteViaje` marca `deleted=true` + `lastModified` (en Supabase con UPDATE y en localStorage como tombstone) en vez de eliminar la fila. `getViajes` filtra `!v.deleted` al devolver, pero mantiene los tombstones en localStorage/Supabase para que el borrado se propague. Verificado con simulación de 2 dispositivos: ya no revive ni se re-sube.
+- **Nota:** Los tombstones se acumulan en la tabla (aceptable a este volumen). Se pueden purgar manualmente con `DELETE FROM viajes WHERE deleted = true` cuando se quiera.
+
+#### Pendientes de la auditoría (ver memoria del proyecto)
+- 🔴 Seguridad: repo público sirve el CRM por GitHub Pages con `INITIAL_VIAJES` (datos reales) embebidos; buckets Storage públicos; registro de cuentas abierto. Requiere decisión de hosting (privado vs Netlify/Vercel) + purgar historial git.
+- 🟠 Pérdida de foco al editar BL en Gestión (`CompareField`/`EditableField` definidos dentro de `GestionPage`); arranque lento por Babel in-browser; sin fallback si un CDN cae.
+
 ---
 
 ## Pendientes / Mejoras Futuras

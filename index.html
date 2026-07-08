@@ -2798,14 +2798,19 @@
                     }
                 }
 
-                // Si no hay datos, usar los viajes iniciales pre-cargados
-                if (viajes.length === 0 && typeof INITIAL_VIAJES !== 'undefined' && INITIAL_VIAJES.length > 0) {
-                    viajes = [...INITIAL_VIAJES];
+                // Ocultar viajes con borrado suave (tombstones): no se muestran ni cuentan,
+                // pero permanecen en localStorage/Supabase para que el borrado se propague.
+                const visibles = viajes.filter(v => !v.deleted);
+
+                // Si no hay datos visibles, usar los viajes iniciales pre-cargados
+                if (visibles.length === 0 && typeof INITIAL_VIAJES !== 'undefined' && INITIAL_VIAJES.length > 0) {
+                    const seed = [...INITIAL_VIAJES];
                     // Guardar en localStorage para futuras cargas
-                    localStorage.setItem('antigravity_crm_data', JSON.stringify(viajes));
+                    localStorage.setItem('antigravity_crm_data', JSON.stringify(seed));
+                    return seed;
                 }
 
-                return viajes;
+                return visibles;
             },
 
             // Guardar viaje - Guarda en localStorage primero (respaldo), luego sincroniza a Supabase
@@ -2868,22 +2873,36 @@
                 return { success: true };
             },
 
-            // Eliminar viaje
+            // Eliminar viaje (BORRADO SUAVE): se marca deleted=true en vez de eliminar la fila.
+            // Así el borrado se propaga a otros dispositivos y no "revive" en la sincronización.
             async deleteViaje(tripId) {
+                await waitForSupabase();
                 const sb = getSupabase();
+                const now = new Date().toISOString();
 
+                // 1) Marcar como borrado en localStorage (tombstone), NO quitar la fila
+                try {
+                    const localData = safeParseLocal('antigravity_crm_data');
+                    const idx = localData.findIndex(v => v.tripId === tripId);
+                    if (idx >= 0) {
+                        localData[idx] = { ...localData[idx], deleted: true, lastModified: now };
+                        localStorage.setItem('antigravity_crm_data', JSON.stringify(localData));
+                    }
+                } catch (storageErr) {
+                    console.error('Error en localStorage:', storageErr);
+                }
+
+                // 2) Marcar como borrado en Supabase para propagarlo a todos los dispositivos
                 if (sb) {
                     try {
-                        const { error } = await sb.from('viajes').delete().eq('tripId', tripId);
+                        const { error } = await sb.from('viajes').update({ deleted: true, lastModified: now }).eq('tripId', tripId);
                         if (error) throw error;
                     } catch (err) {
                         console.error('❌ Error eliminando de Supabase:', err.message);
+                        return { success: true, synced: false, error: err.message };
                     }
                 }
-
-                const localData = safeParseLocal('antigravity_crm_data');
-                localStorage.setItem('antigravity_crm_data', JSON.stringify(localData.filter(v => v.tripId !== tripId)));
-                return { success: true };
+                return { success: true, synced: true };
             },
 
             // Migrar datos de localStorage a Supabase
