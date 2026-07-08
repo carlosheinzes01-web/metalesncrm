@@ -6700,6 +6700,138 @@
             return result;
         };
 
+        // Helpers de GestionPage (definidos FUERA para que React no los recree en cada
+        // render; si no, el input pierde el foco al escribir — mismo patrón que FieldWithChange).
+        const ResultField = ({ label, value }) => (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{label}</span>
+                <span style={{ fontWeight: 500, fontSize: '0.8125rem' }}>{value || '-'}</span>
+            </div>
+        );
+
+        // Componente para comparar valores viaje vs BL
+        const CompareField = ({ label, viajeValue, blValue, onChange, readOnly, isNew, highlight, isMoney }) => {
+            const viajeStr = viajeValue ? String(viajeValue) : '';
+            const blStr = blValue ? String(blValue) : '';
+            const viajeDisplay = isMoney && viajeStr ? `$${viajeStr}` : viajeStr;
+            const blDisplay = isMoney && blStr ? `$${blStr}` : blStr;
+
+            // Determinar estado
+            let status = 'empty'; // No hay valor en ninguno
+            if (viajeStr && blStr) {
+                status = viajeStr.toUpperCase() === blStr.toUpperCase() ? 'match' : 'diff';
+            } else if (blStr && !viajeStr) {
+                status = 'new';
+            } else if (viajeStr && !blStr) {
+                status = 'existing';
+            }
+
+            const statusStyles = {
+                match: { bg: 'rgba(34, 197, 94, 0.1)', border: 'var(--success)', icon: '✓', text: 'Confirmado' },
+                new: { bg: 'rgba(59, 130, 246, 0.1)', border: 'var(--info)', icon: '➕', text: 'Nuevo' },
+                diff: { bg: 'rgba(245, 158, 11, 0.1)', border: 'var(--warning)', icon: '⚠️', text: 'Diferente' },
+                existing: { bg: 'var(--bg)', border: 'var(--border)', icon: '📋', text: 'Sin cambio' },
+                empty: { bg: 'var(--bg)', border: 'var(--border)', icon: '-', text: '' }
+            };
+
+            const style = statusStyles[status];
+
+            return (
+                <div style={{
+                    padding: '0.75rem',
+                    marginBottom: '0.5rem',
+                    borderRadius: '8px',
+                    background: style.bg,
+                    border: `1px solid ${style.border}`,
+                    ...(highlight && { boxShadow: '0 0 0 2px var(--primary)' })
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{label}</span>
+                        {status !== 'empty' && (
+                            <span style={{ fontSize: '0.75rem', color: style.border, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                {style.icon} {style.text}
+                            </span>
+                        )}
+                    </div>
+
+                    {status === 'diff' ? (
+                        <div style={{ fontSize: '0.8125rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                <span style={{ color: 'var(--text-muted)', minWidth: '50px' }}>Viaje:</span>
+                                <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{viajeDisplay || '-'}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ color: 'var(--text-muted)', minWidth: '50px' }}>BL:</span>
+                                <input
+                                    type="text"
+                                    value={blValue || ''}
+                                    onChange={(e) => onChange && onChange(e.target.value)}
+                                    disabled={readOnly}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.3rem 0.5rem',
+                                        border: '1px solid var(--warning)',
+                                        borderRadius: '4px',
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 600,
+                                        background: 'var(--surface)',
+                                        color: 'var(--text)'
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {readOnly ? (
+                                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{blDisplay || viajeDisplay || '-'}</span>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={blValue || ''}
+                                    onChange={(e) => onChange && onChange(e.target.value)}
+                                    placeholder={viajeDisplay || '-'}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.3rem 0.5rem',
+                                        border: `1px solid ${style.border}`,
+                                        borderRadius: '4px',
+                                        fontSize: '0.8125rem',
+                                        fontWeight: 500,
+                                        background: 'var(--surface)',
+                                        color: 'var(--text)'
+                                    }}
+                                />
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Campo editable para booking
+        const EditableField = ({ label, fieldKey, value, onChange }) => (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)', gap: '1rem' }}>
+                <label style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', whiteSpace: 'nowrap', minWidth: '120px' }}>{label}</label>
+                <input
+                    type="text"
+                    value={value || ''}
+                    onChange={(e) => onChange(fieldKey, e.target.value)}
+                    style={{
+                        flex: 1,
+                        padding: '0.4rem 0.6rem',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        maxWidth: '200px'
+                    }}
+                    placeholder="-"
+                />
+            </div>
+        );
+
         const GestionPage = ({ onOpenBookingModal, onEditViaje, onEditViajeWithOriginal, allData, onImport, onExport, onExportFiltered }) => {
             const [activeTab, setActiveTab] = useState('booking');
 
@@ -6885,136 +7017,6 @@
                     setBlEdited({});
                 }
             };
-
-            const ResultField = ({ label, value }) => (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{label}</span>
-                    <span style={{ fontWeight: 500, fontSize: '0.8125rem' }}>{value || '-'}</span>
-                </div>
-            );
-
-            // Componente para comparar valores viaje vs BL
-            const CompareField = ({ label, viajeValue, blValue, onChange, readOnly, isNew, highlight, isMoney }) => {
-                const viajeStr = viajeValue ? String(viajeValue) : '';
-                const blStr = blValue ? String(blValue) : '';
-                const viajeDisplay = isMoney && viajeStr ? `$${viajeStr}` : viajeStr;
-                const blDisplay = isMoney && blStr ? `$${blStr}` : blStr;
-
-                // Determinar estado
-                let status = 'empty'; // No hay valor en ninguno
-                if (viajeStr && blStr) {
-                    status = viajeStr.toUpperCase() === blStr.toUpperCase() ? 'match' : 'diff';
-                } else if (blStr && !viajeStr) {
-                    status = 'new';
-                } else if (viajeStr && !blStr) {
-                    status = 'existing';
-                }
-
-                const statusStyles = {
-                    match: { bg: 'rgba(34, 197, 94, 0.1)', border: 'var(--success)', icon: '✓', text: 'Confirmado' },
-                    new: { bg: 'rgba(59, 130, 246, 0.1)', border: 'var(--info)', icon: '➕', text: 'Nuevo' },
-                    diff: { bg: 'rgba(245, 158, 11, 0.1)', border: 'var(--warning)', icon: '⚠️', text: 'Diferente' },
-                    existing: { bg: 'var(--bg)', border: 'var(--border)', icon: '📋', text: 'Sin cambio' },
-                    empty: { bg: 'var(--bg)', border: 'var(--border)', icon: '-', text: '' }
-                };
-
-                const style = statusStyles[status];
-
-                return (
-                    <div style={{
-                        padding: '0.75rem',
-                        marginBottom: '0.5rem',
-                        borderRadius: '8px',
-                        background: style.bg,
-                        border: `1px solid ${style.border}`,
-                        ...(highlight && { boxShadow: '0 0 0 2px var(--primary)' })
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{label}</span>
-                            {status !== 'empty' && (
-                                <span style={{ fontSize: '0.75rem', color: style.border, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    {style.icon} {style.text}
-                                </span>
-                            )}
-                        </div>
-
-                        {status === 'diff' ? (
-                            <div style={{ fontSize: '0.8125rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                                    <span style={{ color: 'var(--text-muted)', minWidth: '50px' }}>Viaje:</span>
-                                    <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{viajeDisplay || '-'}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ color: 'var(--text-muted)', minWidth: '50px' }}>BL:</span>
-                                    <input
-                                        type="text"
-                                        value={blValue || ''}
-                                        onChange={(e) => onChange && onChange(e.target.value)}
-                                        disabled={readOnly}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.3rem 0.5rem',
-                                            border: '1px solid var(--warning)',
-                                            borderRadius: '4px',
-                                            fontSize: '0.8125rem',
-                                            fontWeight: 600,
-                                            background: 'var(--surface)',
-                                            color: 'var(--text)'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                {readOnly ? (
-                                    <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{blDisplay || viajeDisplay || '-'}</span>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        value={blValue || ''}
-                                        onChange={(e) => onChange && onChange(e.target.value)}
-                                        placeholder={viajeDisplay || '-'}
-                                        style={{
-                                            flex: 1,
-                                            padding: '0.3rem 0.5rem',
-                                            border: `1px solid ${style.border}`,
-                                            borderRadius: '4px',
-                                            fontSize: '0.8125rem',
-                                            fontWeight: 500,
-                                            background: 'var(--surface)',
-                                            color: 'var(--text)'
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        )}
-                    </div>
-                );
-            };
-
-            // Campo editable para booking
-            const EditableField = ({ label, fieldKey, value, onChange }) => (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)', gap: '1rem' }}>
-                    <label style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', whiteSpace: 'nowrap', minWidth: '120px' }}>{label}</label>
-                    <input
-                        type="text"
-                        value={value || ''}
-                        onChange={(e) => onChange(fieldKey, e.target.value)}
-                        style={{
-                            flex: 1,
-                            padding: '0.4rem 0.6rem',
-                            border: '1px solid var(--border)',
-                            borderRadius: '6px',
-                            fontSize: '0.8125rem',
-                            fontWeight: 500,
-                            background: 'var(--surface)',
-                            color: 'var(--text)',
-                            maxWidth: '200px'
-                        }}
-                        placeholder="-"
-                    />
-                </div>
-            );
 
             return (
                 <div>
