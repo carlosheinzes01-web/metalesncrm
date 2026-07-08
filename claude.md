@@ -431,9 +431,26 @@ viaje.anticipoPagado = true // o false
 - **Solución:** Borrado suave. Migración SQL: `ALTER TABLE viajes ADD COLUMN deleted boolean DEFAULT false` (aplicada 2026-07-08 vía Management API). `deleteViaje` marca `deleted=true` + `lastModified` (en Supabase con UPDATE y en localStorage como tombstone) en vez de eliminar la fila. `getViajes` filtra `!v.deleted` al devolver, pero mantiene los tombstones en localStorage/Supabase para que el borrado se propague. Verificado con simulación de 2 dispositivos: ya no revive ni se re-sube.
 - **Nota:** Los tombstones se acumulan en la tabla (aceptable a este volumen). Se pueden purgar manualmente con `DELETE FROM viajes WHERE deleted = true` cuando se quiera.
 
+#### 🟠🟡 Mejoras Media/Menor de la auditoría
+
+**44. Fix pérdida de foco al editar el BL (Gestión)**
+- **Problema:** `ResultField`, `CompareField` y `EditableField` estaban definidos DENTRO de `GestionPage` → React los recreaba en cada render y el input del BL perdía el foco tras cada tecla (mismo patrón que #16 y #32).
+- **Solución:** Movidos a nivel de módulo (antes de `GestionPage`, ~línea 6705). Son componentes puros (solo props), sin cambio de comportamiento. Nota: `EditableField` quedó sin usos (código muerto preexistente).
+
+**45. Aviso si un recurso (CDN) no carga**
+- **Problema:** Si caía unpkg (React/Babel), el usuario veía pantalla en blanco sin explicación (ni el ErrorBoundary ayuda porque React no cargó).
+- **Solución:** Loader inicial en `#root` + script JS plano al final del body que, 8s tras `load`, si falta `window.React/ReactDOM/Babel`, muestra un mensaje "No se pudo cargar la aplicación… revisa tu conexión" con botón Recargar. Supabase NO se revisa ahí (la app funciona offline con localStorage; ya hay indicador Nube/Offline).
+
+**46. Accesibilidad de modales (ARIA)**
+- **Cambio:** Los 3 modales principales (`modal-card` en ~4245 KPI, ~4500 Import, ~5068 Edit) ahora tienen `role="dialog"`, `aria-modal="true"` y `aria-labelledby` (con `id` en el `<h3>`); los botones de cerrar (solo icono) tienen `aria-label="Cerrar"`.
+- **Pendiente (bajo valor para usuario único vidente):** focus-trap/foco inicial y conectar `<label htmlFor>` en los inputs.
+
+**47. Export Excel formatea `Cierre despacho`**
+- **Cambio:** Se agregó `Cierre despacho` a la lista de formateo de fechas del export (~línea 3582) → sale `DD/MM/YYYY` en vez de ISO crudo. Verificado: `2026-07-13 → 13/07/2026`.
+
 #### Pendientes de la auditoría (ver memoria del proyecto)
-- 🔴 Seguridad: repo público sirve el CRM por GitHub Pages con `INITIAL_VIAJES` (datos reales) embebidos; buckets Storage públicos; registro de cuentas abierto. Requiere decisión de hosting (privado vs Netlify/Vercel) + purgar historial git.
-- 🟠 Pérdida de foco al editar BL en Gestión (`CompareField`/`EditableField` definidos dentro de `GestionPage`); arranque lento por Babel in-browser; sin fallback si un CDN cae.
+- 🔴 Seguridad (PARA MAÑANA 2026-07-09): repo público sirve el CRM por GitHub Pages con `INITIAL_VIAJES` (datos reales) embebidos; buckets Storage públicos; registro de cuentas abierto. Requiere decisión de hosting (privado vs Netlify/Vercel) + purgar historial git.
+- 🟡 Menor (no urgente): precompilar Babel para arranque más rápido (tiene trade-off: rompe la edición directa del archivo); focus-trap en modales; `<label htmlFor>` en inputs; paginación/doble-render si los datos crecen.
 
 ---
 

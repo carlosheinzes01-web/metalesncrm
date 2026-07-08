@@ -1666,7 +1666,12 @@
 </head>
 
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div style="max-width:420px;margin:15vh auto;text-align:center;font-family:'Inter',system-ui,sans-serif;padding:2rem;color:#6b7280;">
+            <div style="font-size:2rem;margin-bottom:0.75rem;">⏳</div>
+            <p style="margin:0;">Cargando Antigravity CRM…</p>
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
@@ -3579,7 +3584,7 @@
                     EXPORT_COLUMNS.forEach(col => {
                         let value = row[col] !== undefined ? row[col] : '';
                         // Formatear fechas
-                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo', 'Cut off'].includes(col) && value && value !== 'Verde') {
+                        if (['Fecha', 'Fecha de embarque', 'Fecha de arribo', 'Cut off', 'Cierre despacho'].includes(col) && value && value !== 'Verde') {
                             value = formatDateExport(value);
                         }
                         clean[col] = value;
@@ -4237,10 +4242,10 @@
             useEffect(() => { lucide.createIcons(); }, []);
             return (
                 <div className="modal-overlay" onClick={onClose}>
-                    <div className="modal-card" style={{ maxWidth: '800px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-card" style={{ maxWidth: '800px' }} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="kpi-modal-title">
                         <div className="modal-header">
-                            <h3>{title} ({viajes.length})</h3>
-                            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+                            <h3 id="kpi-modal-title">{title} ({viajes.length})</h3>
+                            <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
                                 <i data-lucide="X" size="20"></i>
                             </button>
                         </div>
@@ -4492,10 +4497,10 @@
 
             return (
                 <div className="modal-overlay" onClick={onClose}>
-                    <div className="modal-card" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-card" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
                         <div className="modal-header">
-                            <h3>Importar desde Excel</h3>
-                            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+                            <h3 id="import-modal-title">Importar desde Excel</h3>
+                            <button onClick={onClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
                                 <i data-lucide="X" size="20"></i>
                             </button>
                         </div>
@@ -5060,10 +5065,10 @@
 
             return (
                 <div className="modal-overlay" onClick={handleClose}>
-                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
                         <div className="modal-header">
-                            <h3>{isNew ? 'Nuevo Viaje' : `Editar: ${form.Nombre || 'Viaje'}`}</h3>
-                            <button onClick={handleClose} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0.5rem' }}>
+                            <h3 id="edit-modal-title">{isNew ? 'Nuevo Viaje' : `Editar: ${form.Nombre || 'Viaje'}`}</h3>
+                            <button onClick={handleClose} aria-label="Cerrar" style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0.5rem' }}>
                                 <i data-lucide="X" size="20"></i>
                             </button>
                         </div>
@@ -7977,6 +7982,31 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<ErrorBoundary><App /></ErrorBoundary>);
+    </script>
+
+    <script>
+      // Aviso si un recurso crítico (CDN) no cargó — evita quedarse en pantalla en blanco sin explicación.
+      // React/ReactDOM/Babel son imprescindibles; Supabase NO se revisa aquí (la app funciona offline con localStorage).
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var faltan = [];
+          if (!window.React) faltan.push('React');
+          if (!window.ReactDOM) faltan.push('ReactDOM');
+          if (!window.Babel) faltan.push('Babel');
+          if (!faltan.length) return; // todo lo crítico cargó bien
+          var el = document.getElementById('root');
+          if (!el) return;
+          el.innerHTML =
+            '<div style="max-width:440px;margin:14vh auto;text-align:center;font-family:Inter,system-ui,sans-serif;padding:2rem;">'
+            + '<div style="font-size:2.5rem;margin-bottom:1rem;">📡</div>'
+            + '<h2 style="margin:0 0 .5rem;font-size:1.25rem;color:#111827;">No se pudo cargar la aplicación</h2>'
+            + '<p style="color:#6b7280;margin:0 0 1.5rem;line-height:1.5;">No se descargaron algunos recursos necesarios ('
+            + faltan.join(', ')
+            + '). Revisa tu conexión a internet e inténtalo de nuevo.</p>'
+            + '<button onclick="location.reload()" style="background:#2563eb;color:#fff;border:none;padding:.75rem 1.5rem;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;">Recargar página</button>'
+            + '</div>';
+        }, 8000);
+      });
     </script>
 </body>
 </html>
