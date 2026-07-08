@@ -398,6 +398,17 @@ viaje.anticipoPagado = true // o false
   4. Migración `migration_sivgm_cierre_v2` (~7544): se eliminó el Paso 2 que forzaba SI/VGM = Zarpe − 3; se conserva el Paso 1 que copia el SI/VGM viejo al Cierre Despacho.
 - **Nota:** Los datos ya migrados no se re-tocan (la flag v2 ya está puesta). Los valores de SI/VGM existentes quedan como estaban y ahora son editables a mano.
 
+**39. Limpieza de columnas en exportación Excel (espacios en blanco)**
+- **Problema:** El Excel exportado tenía muchos espacios en blanco. Diagnóstico sobre los 65 viajes reales de Supabase.
+- **Causa:** 5 columnas "fantasma" que se exportaban pero **no tienen campo en el formulario** para llenarse, así que salían 100% vacías en todos los viajes: `Origen`, `Destino`, `Cliente`, `Proveedor`, `Producto`. (El cliente se captura en el campo `Nombre`, etiquetado "Nombre / Cliente".)
+- **Solución en `EXPORT_COLUMNS` (~línea 3487):**
+  - Se **quitaron** las 5 columnas fantasma.
+  - Se **quitó** la columna vieja `SI` (semáforo legacy), dejando solo `Cut off` (= SI/VGM real) y `Cierre despacho`.
+  - Se **agregó** `Costo agencia` (tenía datos en 3 viajes pero no se exportaba).
+- **Resultado:** El Excel pasó de 29 a 24 columnas, sin ninguna columna 100% vacía.
+- **No se tocó:** `TRACKED_FIELDS`, `FIELD_LABELS` (historial) ni el mapeo de importación — siguen reconociendo esos nombres por compatibilidad.
+- **Nota:** Las columnas que quedan vacías "a veces" (Nº factura, 10%, Anticipos, Notas, fechas ETD/ETA) son normales: solo se llenan cuando el viaje tiene ese dato.
+
 ---
 
 ## Pendientes / Mejoras Futuras
