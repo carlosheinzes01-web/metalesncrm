@@ -409,6 +409,11 @@ viaje.anticipoPagado = true // o false
 - **No se tocó:** `TRACKED_FIELDS`, `FIELD_LABELS` (historial) ni el mapeo de importación — siguen reconociendo esos nombres por compatibilidad.
 - **Nota:** Las columnas que quedan vacías "a veces" (Nº factura, 10%, Anticipos, Notas, fechas ETD/ETA) son normales: solo se llenan cuando el viaje tiene ese dato.
 
+**40. Quitar columna `tripId` del export + auto-filtro**
+- **`tripId` fuera del export:** Es un UUID interno sin valor para el usuario. Se confirmó que `processImport` empareja por BL → Booking → Nombre+Fecha → Nombre (NO por `tripId`), así que quitarlo no afecta la re-importación. Export: 24 → 23 columnas.
+- **Auto-filtro:** Se agregó `ws['!autofilter'] = { ref: ws['!ref'] }` en `ExcelService.export` — el Excel abre con botones de filtro/orden en los encabezados.
+- **Descartado:** Encabezados "legibles" en el export. `processImport` (~3630) lee los encabezados del Excel como nombres de campo (`row['$venta']`, etc.) sin traducción inversa; renombrarlos rompería la re-importación. Requeriría un diccionario encabezado-legible → clave-interna. Congelar la fila de encabezados tampoco es viable: SheetJS community no escribe `!freeze`.
+
 ---
 
 ## Pendientes / Mejoras Futuras
