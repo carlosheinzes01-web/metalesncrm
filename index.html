@@ -2808,34 +2808,17 @@
                 return viajes;
             },
 
-            // Guardar viaje - Guarda en Supabase primero, luego localStorage
+            // Guardar viaje - Guarda en localStorage primero (respaldo), luego sincroniza a Supabase
             async saveViaje(viaje) {
                 // Esperar a que Supabase esté listo
                 await waitForSupabase();
                 const sb = getSupabase();
 
-                if (!sb) {
-                    console.warn('⚠️ saveViaje: Supabase NO disponible, guardando solo en localStorage');
-                }
-
                 // Preparar documento para guardar (sin base64 grandes)
                 const viajeParaGuardar = cleanDocumentsForSupabase(viaje);
 
-                // Si hay Supabase, guardar ahí primero
-                if (sb) {
-                    try {
-                        const { data, error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' }).select();
-                        if (error) {
-                            console.error('❌ Supabase error:', error);
-                            throw error;
-                        }
-                    } catch (err) {
-                        console.error('❌ Error guardando en Supabase:', err.message, err);
-                        return { success: true, synced: false, error: err.message };
-                    }
-                }
-
-                // Guardar también en localStorage como respaldo
+                // 1) Guardar SIEMPRE en localStorage primero (respaldo).
+                //    Así, aunque Supabase falle, el cambio no se pierde y autoSync lo reintenta.
                 try {
                     const localData = safeParseLocal('antigravity_crm_data');
                     const idx = localData.findIndex(v => v.tripId === viajeParaGuardar.tripId);
@@ -2844,6 +2827,22 @@
                     localStorage.setItem('antigravity_crm_data', JSON.stringify(localData));
                 } catch (storageErr) {
                     console.error('Error en localStorage:', storageErr);
+                }
+
+                // 2) Intentar sincronizar con Supabase
+                if (!sb) {
+                    console.warn('⚠️ saveViaje: Supabase NO disponible, guardado solo en localStorage');
+                    return { success: true, synced: false };
+                }
+                try {
+                    const { error } = await sb.from('viajes').upsert(viajeParaGuardar, { onConflict: 'tripId' }).select();
+                    if (error) {
+                        console.error('❌ Supabase error:', error);
+                        throw error;
+                    }
+                } catch (err) {
+                    console.error('❌ Error guardando en Supabase:', err.message, err);
+                    return { success: true, synced: false, error: err.message };
                 }
 
                 return { success: true, synced: true };
@@ -3704,11 +3703,16 @@
                     } else {
                         // Nuevo registro
                         viaje.documentos = createEmptyDocumentos();
-                        results.data.unshift(viaje);
+                        // IMPORTANTE: usar push (agregar al final), NO unshift.
+                        // unshift desplaza +1 todos los índices y deja los mapas de match
+                        // (blMap/bookingMap/nombreMap) apuntando al viaje equivocado, lo que
+                        // corrompía datos al importar filas nuevas + actualizaciones mezcladas.
+                        // El orden no importa: la tabla se reordena por Fecha al mostrar.
+                        results.data.push(viaje);
                         results.nuevos++;
 
                         // Actualizar mapas para detectar duplicados en filas siguientes del mismo Excel
-                        const newIdx = 0; // Se inserto al inicio
+                        const newIdx = results.data.length - 1; // índice real del recién insertado
                         if (bl) blMap.set(bl, newIdx);
                         if (booking) bookingMap.set(booking, newIdx);
                         if (nombre) nombreMap.set(nombre, newIdx);
