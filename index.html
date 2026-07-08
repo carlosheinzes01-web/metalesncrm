@@ -5130,11 +5130,12 @@
                                                     <label>Zarpe (ETD)</label>
                                                     <input type="date" value={formatDateForInput(form['Fecha de embarque'])} onChange={e => {
                                                         set('Fecha de embarque', e.target.value);
-                                                        // Auto-calcular SI/VGM: 3 días antes de Zarpe
-                                                        if (e.target.value) {
+                                                        // Auto-calcular Cierre Despacho: 3 días antes de Zarpe
+                                                        // (se respeta si está marcado en Verde/Rojo manualmente)
+                                                        if (e.target.value && form['Cierre despacho'] !== 'Verde' && form['Cierre despacho'] !== 'Rojo') {
                                                             const zarpe = new Date(e.target.value + 'T12:00:00');
                                                             zarpe.setDate(zarpe.getDate() - 3);
-                                                            set('Cut off', zarpe.toISOString().split('T')[0]);
+                                                            set('Cierre despacho', zarpe.toISOString().split('T')[0]);
                                                         }
                                                     }} />
                                                 </div>
@@ -5148,7 +5149,7 @@
                                         <div className="form-section">
                                             <div className="form-section-title"><i data-lucide="Clock" size="16"></i>SI/VGM</div>
                                             <div className="form-group">
-                                                <label>Fecha SI/VGM (auto: 3 días antes de Zarpe)</label>
+                                                <label>Fecha SI/VGM (manual)</label>
                                                 <input type="date" value={formatDateForInput(form['Cut off'])} onChange={e => set('Cut off', e.target.value)} />
                                             </div>
                                         </div>
@@ -5156,6 +5157,7 @@
                                         <div className="form-section">
                                             <div className="form-section-title"><i data-lucide="ClipboardCheck" size="16"></i>Cierre Despacho</div>
                                             <div className="form-group">
+                                                <label>Cierre Despacho (auto: 3 días antes de Zarpe)</label>
                                                 <select value={getCierreDespachoStatus()} onChange={e => {
                                                     if (e.target.value === 'verde') set('Cierre despacho', 'Verde');
                                                     else if (e.target.value === 'rojo') set('Cierre despacho', 'Rojo');
@@ -7539,7 +7541,7 @@
                     const d = await DatabaseService.getViajes();
                     const viajes = d.map(v => ({ ...v, tripId: v.tripId || generateUUID() }));
 
-                    // Migración SI/VGM → Cierre Despacho (v2: recalcula TODOS los SI/VGM)
+                    // Migración SI/VGM → Cierre Despacho (copia el valor viejo de SI/VGM al Cierre Despacho)
                     const migrationDone = localStorage.getItem('migration_sivgm_cierre_v2');
                     let finalViajes = viajes;
 
@@ -7548,20 +7550,10 @@
                         const migratedViajes = viajes.map(v => {
                             const updated = { ...v };
                             let thisChanged = false;
-                            // Paso 1: Copiar Cut off → Cierre despacho (si Cierre despacho está vacío)
+                            // Copiar Cut off (SI/VGM viejo) → Cierre despacho (si Cierre despacho está vacío)
                             if (v['Cut off'] && !v['Cierre despacho']) {
                                 updated['Cierre despacho'] = v['Cut off'];
                                 thisChanged = true;
-                            }
-                            // Paso 2: Recalcular TODOS los SI/VGM como 3 días antes de Zarpe
-                            if (v['Fecha de embarque']) {
-                                const zarpe = new Date(v['Fecha de embarque'] + 'T12:00:00');
-                                zarpe.setDate(zarpe.getDate() - 3);
-                                const newCutoff = zarpe.toISOString().split('T')[0];
-                                if (updated['Cut off'] !== newCutoff) {
-                                    updated['Cut off'] = newCutoff;
-                                    thisChanged = true;
-                                }
                             }
                             if (thisChanged) {
                                 changed = true;
@@ -7705,15 +7697,10 @@
                     }
 
                     if (esNuevo) {
-                        // Auto-calcular fechas desde Zarpe (solo al crear)
+                        // Auto-calcular Cierre Despacho desde Zarpe (solo al crear)
+                        // SI/VGM se llena manualmente (o desde el PDF del booking)
                         if (toSave['Fecha de embarque']) {
                             const zarpe = new Date(toSave['Fecha de embarque'] + 'T12:00:00');
-                            // SI/VGM: 3 días antes de Zarpe
-                            if (!toSave['Cut off']) {
-                                const sivgm = new Date(zarpe);
-                                sivgm.setDate(sivgm.getDate() - 3);
-                                toSave['Cut off'] = sivgm.toISOString().split('T')[0];
-                            }
                             // Cierre despacho: 3 días antes de Zarpe
                             if (!toSave['Cierre despacho']) {
                                 const cierre = new Date(zarpe);

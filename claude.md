@@ -382,6 +382,24 @@ viaje.anticipoPagado = true // o false
 
 ---
 
+### 2026-07-08 - SI/VGM manual + Cierre Despacho automático
+
+#### 🟠 Cambio de lógica de fechas
+
+**38. SI/VGM ahora es manual; Cierre Despacho se auto-calcula (Zarpe − 3 días)**
+- **Problema:** La regla de "3 días antes del zarpe" estaba aplicada al campo equivocado. SI/VGM se auto-calculaba (debe ser manual, viene del booking) y Cierre Despacho era manual (es el que va a 3 días del zarpe).
+- **Solución:** Se invirtió la lógica:
+  - **SI/VGM** (`Cut off`): 100% manual. Se quitó todo auto-cálculo.
+  - **Cierre Despacho** (`Cierre despacho`): se auto-calcula = Zarpe − 3 días al cambiar el Zarpe, pero sigue siendo editable a mano y admite estado Verde/Rojo (Opción A). Si ya está en Verde/Rojo, el cambio de Zarpe no lo pisa.
+- **Lugares modificados en `index.html`:**
+  1. `onChange` del Zarpe en el modal (~5131): ahora setea `Cierre despacho` en vez de `Cut off`, salvo que esté en Verde/Rojo.
+  2. Labels del modal (~5151, ~5160): "Fecha SI/VGM (manual)" y "Cierre Despacho (auto: 3 días antes de Zarpe)".
+  3. `handleSave` al crear viaje nuevo (~7710): solo auto-calcula Cierre Despacho; SI/VGM se deja como venga (manual o del PDF).
+  4. Migración `migration_sivgm_cierre_v2` (~7544): se eliminó el Paso 2 que forzaba SI/VGM = Zarpe − 3; se conserva el Paso 1 que copia el SI/VGM viejo al Cierre Despacho.
+- **Nota:** Los datos ya migrados no se re-tocan (la flag v2 ya está puesta). Los valores de SI/VGM existentes quedan como estaban y ahora son editables a mano.
+
+---
+
 ## Pendientes / Mejoras Futuras
 
 1. ~~**Validación de datos**~~ ✅ Implementado 2026-01-27
